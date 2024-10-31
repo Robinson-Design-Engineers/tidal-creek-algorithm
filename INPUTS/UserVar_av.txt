@@ -1,0 +1,59 @@
+# =========================================
+# FILENAMES
+# =========================================
+
+name='Ashleyville Restoration Site'				# Name of the site, will appear in figures  	
+elev='INPUTS/av_DEM_converted_m_fillNoData.h5'			# Path and name of the elevation map .txt file
+elevmeta='INPUTS/av_DEM_converted_m_fillNoData_metadata.h5'	# Path and name of the elevation map .txt metadata file
+slope='INPUTS/av_slope_degrees_fillNoData.h5'			# Path and name of the slope map .txt file
+slopemeta='INPUTS/av_slope_degrees_fillNoData_metadata.h5'	# Path and name of the slope map .txt metadata file
+
+# =========================================
+# PROCESSING / VISUALISATION INSTRUCTIONS
+# =========================================
+
+resamplestep=2							# Resampling step: : if figures too heavy and take a long time to appear, increase the resampling step
+threshold=0							# Choose manual (1) or automated (0) threshold selection. If 0: uses the threshold values in the next section 
+detrendyn=0							# Choose (1) to detrend the elevation values, (0) otherwise
+outletdetection=1						# Choose (1) to detect the lowest outlet as the breach, (0) otherwise
+
+# =========================================
+# TIDAL CHARACTERISTICS (in ODm)
+# =========================================
+
+HAT=2.286							# Highest Astronomical Tide
+MHWS=1.756							# Mean High Water Spring 
+MLWS=0								# Mean Low Water Spring
+MHWN=1.646							# Mean High Water Neap
+MLWN=0.052							# Mean Low Water Neap
+
+# =========================================
+# CREEK DETECTION THRESHOLDS
+# =========================================
+
+Cth=7.5								# Slope threshold (edges of creeks)
+Ctharea=69200							# Slope threshold area (to plot on slope distribution curve)
+LZth=0.19							# Lower elevation threshold (bottom of creeks)
+LZtharea=3100							# Lower elevation threshold area (to plot on hypsometry curve)
+HZth=0.36							# Higher elevation threshold (remove mounts)
+HZtharea=19093							# Higher elevation threshold area (to plot on hypsometry curve)
+
+# =========================================
+# CREEK REPAIR PARAMETERS
+# =========================================
+
+nbbreaches=1							# Number of outlets, the creek segments connected to the wider estuary which will be assigned Reverse Strahler order 1
+noisethreshold=5						# Unconnected elements smaller than this value are removed
+reconnect=1							# Choose (1) to apply the secondary function "Reconnect" to reconnect broken creek segments, (0) otherwise
+reconnectiondist=20						# If "reconnect"=1, all unconnected creek segments larger than "noisethreshold" and no further than "reconnectiondist" from the largest element are reconnected to the creek system 
+ordermax=3							# Maximum creek order (test 4 and correct if needed)		
+filtersmall1=10						
+filterlarge1=1000000						# the two filters remove small and large features from the reconnected creek mask during the Repair phase, before smoothing and infilling holes
+smoothing=4							# smoothing function
+connectivity=8							# connectivity is either 4 or 8 for the Repair phase
+holesizeinfill=5						# maximum size of holes to be infilled in the Repair phase
+filtersmall2=10
+filterlarge2=1000000						# the two filters remove small and large features from the reconnected creek mask during the Repair phase, after smoothing and infilling holes
+
+
+
