@@ -86,7 +86,7 @@ def figure_creek_skeleton(creekmask, skeleton):
     y_branch, x_branch = np.where(B)
     y_end, x_end = np.where(E)
     plt.plot(x_branch, y_branch, 'r+', markersize=10)  # Branch points in red
-    plt.plot(x_end, y_end, 'c+', markersize=10)  # Endpoints in blue
+    plt.plot(x_end, y_end, 'c+', markersize=10)  # Endpoints in cyan
 
     plt.title('Skeleton with Branchpoints and Endpoints')
     # plt.gca().invert_yaxis()  # Invert y-axis to match MATLAB orientation
@@ -102,13 +102,14 @@ def process_creek_ordering(ordermax, Z, skeleton, outletdetection, nbbreaches):
     IDXBRANCH = []
     creekorder = np.zeros_like(skeleton, dtype=int)
     creekordersing = np.zeros_like(skeleton, dtype=int)
+
+    skeleton_og = skeleton
+    B, E, PTS = analyze_skeleton(skeleton)
     
     if outletdetection == 1:
-        idxbreach, xbreach, ybreach, skeleton_breached = process_outlet_detection(Z, skeleton, nbbreaches)
+        idxbreach, xbreach, ybreach, skeleton_breached = process_outlet_detection(Z, skeleton, PTS, nbbreaches)
     else:
         idxbreach, xbreach, ybreach, skeleton_breached = [], [], [], []
-
-    B, E, PTS = analyze_skeleton(skeleton)
 
     i = 1
     max_iterations = 1000  # Failsafe to prevent infinite loop
@@ -171,7 +172,7 @@ def process_creek_ordering(ordermax, Z, skeleton, outletdetection, nbbreaches):
         creekorder[creekordermask] = i
         
         skeleton = skeleton ^ E_processed
-        B, E, PTS = analyze_skeleton(skeleton)
+        B, E, PTS = analyze_skeleton(skeleton) # why is this here? - SamK 11/5/2024
         
         if not np.any(E_processed):
             print(f"No endpoints processed in iteration {i}. Breaking loop.")
@@ -187,6 +188,8 @@ def process_creek_ordering(ordermax, Z, skeleton, outletdetection, nbbreaches):
     STRAIGHTDIST = np.array(STRAIGHTDIST)
     IDXSEG = np.array(IDXSEG)
     IDXBRANCH = np.array(IDXBRANCH)
+
+    B, E, PTS = analyze_skeleton(skeleton_og)
     
     return STRAHLER, STRAIGHTDIST, IDXSEG, IDXBRANCH, idxbreach, xbreach, ybreach, skeleton_breached, creekorder, creekordersing, PTS, list(range(1, i))
 
@@ -199,13 +202,13 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
     IDXBRANCH = []
     creekorder = np.zeros_like(skeleton, dtype=int)
     creekordersing = np.zeros_like(skeleton, dtype=int)
-    
-    if outletdetection == 1:
-        idxbreach, xbreach, ybreach, skeleton_breached = process_outlet_detection(Z, skeleton, nbbreaches)
-    else:
-        idxbreach, xbreach, ybreach, skeleton_breached = [], [], [], []
 
     B, E, PTS = analyze_skeleton(skeleton)
+    
+    if outletdetection == 1:
+        idxbreach, xbreach, ybreach, skeleton_breached = process_outlet_detection(Z, skeleton, PTS, nbbreaches)
+    else:
+        idxbreach, xbreach, ybreach, skeleton_breached = [], [], [], []
 
     i = 1
     max_iterations = 1000  # Failsafe to prevent infinite loop
@@ -274,7 +277,7 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
         creekorder[creekordermask] = i
         
         skeleton = skeleton ^ E_processed
-        B, E, PTS = analyze_skeleton(skeleton)
+        # B, E, PTS = analyze_skeleton(skeleton) # why is this here? - SamK 11/5/2024
         
         if not np.any(E_processed):
             print(f"No endpoints processed in iteration {i}. Breaking loop.")
@@ -293,7 +296,7 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
     
     return STRAHLER, STRAIGHTDIST, IDXSEG, IDXBRANCH, idxbreach, xbreach, ybreach, skeleton_breached, creekorder, creekordersing, PTS, list(range(1, i))
 
-def process_outlet_detection(Z, skeleton, nbbreaches):
+def process_outlet_detection(Z, skeleton, PTS, nbbreaches):
     # Create a mask for the landmass
     landmask = ~np.isnan(Z)
     
@@ -305,9 +308,20 @@ def process_outlet_detection(Z, skeleton, nbbreaches):
         ~landmask[1:-1, :-2] |  # left
         ~landmask[1:-1, 2:]     # right
     ))
+
+    # Create distance transform from the border
+    distance_from_border = ndimage.distance_transform_edt(landmask)
+    distance_from_border[~landmask] = 0
+
+    # Create new border mask 5 pixels inward
+    border_mask_inward = (distance_from_border >= 5) & (distance_from_border <= 6)
+    border_mask_inward = border_mask_inward & landmask
     
-    # Create a distance map from the edge of the landmass
-    distance_from_edge = ndimage.distance_transform_edt(landmask)
+    # # Create a distance map from the edge of the landmass
+    # distance_from_edge = ndimage.distance_transform_edt(landmask)
+
+    # Create a distance map from the contracted border
+    distance_from_edge = ndimage.distance_transform_edt(border_mask_inward)
     
     # Consider points close to the edge (within 5 pixels)
     edge_region = distance_from_edge <= 5
