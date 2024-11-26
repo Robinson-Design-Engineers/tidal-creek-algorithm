@@ -1,12 +1,12 @@
-import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.figure import Figure
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
+import numpy as np # type: ignore
+import matplotlib.pyplot as plt # type: ignore
+from matplotlib.figure import Figure # type: ignore
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk # type: ignore
 import tkinter as tk
 from tkinter import ttk
-from scipy import ndimage
-from skimage.morphology import skeletonize, thin, dilation, disk
-from matplotlib.colors import ListedColormap
+from scipy import ndimage # type: ignore
+from skimage.morphology import skeletonize, thin, dilation, disk # type: ignore
+from matplotlib.colors import ListedColormap # type: ignore
 
 class CreekNetworkAnalyzer:
     def __init__(self, skeleton, X, Y, creek_order, pts, order_max):

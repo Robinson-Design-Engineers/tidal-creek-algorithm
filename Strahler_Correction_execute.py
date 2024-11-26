@@ -1,6 +1,6 @@
-import numpy as np
+import numpy as np # type: ignore
 import json
-from skimage.morphology import skeletonize
+from skimage.morphology import skeletonize # type: ignore
 from Strahler_Correction_class import CreekNetworkAnalyzer  # type: ignore # This is from the class created for the algorithm step 6
 
 # Load the variables from the JSON file
