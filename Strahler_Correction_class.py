@@ -9,7 +9,14 @@ from skimage.morphology import skeletonize, thin, dilation, disk # type: ignore
 from matplotlib.colors import ListedColormap # type: ignore
 
 class CreekNetworkAnalyzer:
-    def __init__(self, skeleton, X, Y, creek_order, pts, order_max):
+    def bwmorph_thicken(self, image, iterations):
+        """Thicken the image by n iterations"""
+        result = image.copy()
+        for _ in range(iterations):
+            result = dilation(result, disk(1))
+        return result
+
+    def __init__(self, skeleton, X, Y, creek_order, creek_order_single, pts, order_max):
         """Initialize with proper array conversion and validation"""
         self.skeleton = np.asarray(skeleton)
         self.pts = np.asarray(pts)
@@ -32,6 +39,8 @@ class CreekNetworkAnalyzer:
                 self.creek_order = np.array(creek_order).reshape(self.rows, self.cols)
         else:
             self.creek_order = np.asarray(creek_order)
+
+        self.creek_order_single = np.asarray(creek_order_single)
         
         self.order_max = int(order_max)
         self.corr_order = []
@@ -39,6 +48,7 @@ class CreekNetworkAnalyzer:
         self.selected_points = []
 
     def create_correction_gui(self):
+        # 6.2 in MATLAB CHIROL_CREEK_ALGORITHM_2024.m -SamK
         """Create GUI for creek order correction"""
         self.root = tk.Tk()
         self.root.title("Creek Order Correction")
@@ -130,6 +140,21 @@ class CreekNetworkAnalyzer:
 
     def _plot_creek_orders(self):
         """Plot creek orders"""
+        # Create coordinate arrays if not provided
+        if self.X is None or self.Y is None:
+            ny, nx = self.skeleton.shape
+            # Create coordinates with one more point than the data dimensions
+            x = np.arange(nx + 1)
+            y = np.arange(ny + 1)
+            self.X, self.Y = np.meshgrid(x, y)
+        else:
+            # If coordinates are provided, verify/adjust their dimensions
+            if self.X.shape[0] != self.skeleton.shape[0] + 1 or self.X.shape[1] != self.skeleton.shape[1] + 1:
+                # Adjust coordinates to have one more point than the data
+                x = np.linspace(self.X.min(), self.X.max(), self.skeleton.shape[1] + 1)
+                y = np.linspace(self.Y.min(), self.Y.max(), self.skeleton.shape[0] + 1)
+                self.X, self.Y = np.meshgrid(x, y)
+
         self.ax1.clear()
         
         # Create discrete colormap: black + 5 colors
@@ -138,19 +163,19 @@ class CreekNetworkAnalyzer:
         # Create the discrete colormap
         discrete_cmap = ListedColormap(colors)
         
-        # # Dilate the skeleton for better visibility
-        # dilated_skeleton = dilation(self.skeleton, disk(2))
+        # Dilate the skeleton for better visibility
+        # dilated_skeleton = self.bwmorph_thicken(self.skeleton, 2)
+        dilated_skeleton = dilation(self.skeleton, disk(1))
         
-        # # Dilate the creek order mask for better visibility
-        # dilated_creek_order = dilation(self.creek_order, disk(2))
-        # masked_orders = np.ma.masked_where(~dilated_skeleton, dilated_creek_order)
-        masked_orders = np.ma.masked_where(~self.skeleton, self.creek_order)
+        masked_orders = np.ma.masked_where(~dilated_skeleton, self.creek_order)
 
         # Set the aspect ratio to 1:1
         self.ax1.set_aspect('equal')
         
         im = self.ax1.pcolormesh(self.X, self.Y, masked_orders,
-                                cmap=discrete_cmap, vmin=1, vmax=7)
+                                cmap=discrete_cmap, 
+                                vmin=1, vmax=7,
+                                shading='flat')
         cbar = self.fig1.colorbar(im, ax=self.ax1, label='Creek order')
         cbar.set_ticks(np.arange(1.5, 7.5))  # Center ticks between colors
         cbar.set_ticklabels(np.arange(1, 7))  # Label with creek orders
@@ -162,7 +187,7 @@ class CreekNetworkAnalyzer:
         self.ax2.clear()
         
         # Dilate skeleton for better visibility
-        dilated_skeleton = dilation(self.skeleton, disk(2))
+        dilated_skeleton = dilation(self.skeleton, disk(1))
         
         # Plot dilated skeleton in white on black background
         self.ax2.imshow(dilated_skeleton, cmap='gray')
@@ -172,6 +197,7 @@ class CreekNetworkAnalyzer:
         self.ax2.plot(x_pts, y_pts, 'r+', markersize=10)
         self.canvas2.draw()
 
+    # starts 6.3 in MATLAB CHIROL_CREEK_ALGORITHM_2024.m -SamK
     def on_click(self, event):
         """Handle click events on the skeleton plot"""
         if event.inaxes == self.ax2:
@@ -222,10 +248,22 @@ class CreekNetworkAnalyzer:
         self.creek_order[path] = order
         self.corr_idx.append([x1, y1, x2, y2])
         self.corr_order.append(order)
+    # ends 6.3 in MATLAB CHIROL_CREEK_ALGORITHM_2024.m -SamK
 
-    # def swap_creek_orders(self):
-    #     """Swap creek orders from Strahler to Reverse Strahler"""
-    #     self.creek_order[self.creek_order == 0] = np.nan
-    #     max_order = np.full_like(self.creek_order, float(self.order_max + 1))
-    #     max_order[np.isnan(self.creek_order)] = np.nan
-    #     self.creek_order2 = max_order - self.creek_order
+    def swap_creek_orders(self):
+        # 6.1 in MATLAB CHIROL_CREEK_ALGORITHM_2024.m -SamK
+        """Swap creek orders from Strahler to Reverse Strahler"""
+        self.creek_order[self.creek_order == 0] = np.nan
+        max_order = np.full_like(self.creek_order, float(self.order_max + 1))
+        max_order = max_order.astype(float)  # Ensure max_order is float
+        max_order[np.isnan(self.creek_order)] = np.nan
+        # self.creek_order2 = max_order - self.creek_order
+        self.creek_order2 = np.logical_xor(max_order, self.creek_order) 
+        # or use self.creek_order2 = max_order ^ self.creek_order
+
+        max_order = np.full_like(self.creek_order_single, float(self.order_max + 1))
+        max_order = max_order.astype(float)  # Ensure max_order is float
+        max_order[np.isnan(self.creek_order_single)] = np.nan
+        # self.creek_order_single2 = max_order - self.creek_order_single
+        self.creek_order_single2 = np.logical_xor(max_order, self.creek_order_single)
+        # or use self.creek_order_single2 = max_order ^ self.creek_order_single

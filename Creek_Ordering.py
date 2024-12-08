@@ -3,6 +3,7 @@ from skimage import morphology, measure, feature, draw # type: ignore
 import matplotlib.pyplot as plt # type: ignore
 from scipy import ndimage # type: ignore
 from scipy.ndimage import distance_transform_edt # type: ignore
+from skimage.morphology import dilation, disk # type: ignore
 import networkx as nx # type: ignore
 from scipy.spatial.transform import Rotation # type: ignore
 
@@ -348,7 +349,8 @@ def process_creek_ordering(ordermax, Z, skeleton, outletdetection, nbbreaches):
         # Assign creek orders
         creekordersing[creekordermask != 0] = creekordermask[creekordermask != 0] * i
         # Thicken the mask i times
-        creekordermask = bwmorph_thicken(creekordermask, i)
+        # creekordermask = bwmorph_thicken(creekordermask, i)
+        creekordermask = dilation(creekordermask, disk(1))
         # Assign creek orders to thickened mask
         creekorder[creekordermask != 0] = creekordermask[creekordermask != 0] * i
         # Clear the mask
@@ -583,7 +585,8 @@ def process_creek_ordering(ordermax, Z, skeleton, outletdetection, nbbreaches):
         # Assign creek orders
         creekordersing[creekordermask != 0] = creekordermask[creekordermask != 0] * i
         # Thicken the mask i times
-        creekordermask = bwmorph_thicken(creekordermask, i)
+        # creekordermask = bwmorph_thicken(creekordermask, i)
+        creekordermask = dilation(creekordermask, disk(1))
         # Assign creek orders to thickened mask
         creekorder[creekordermask != 0] = creekordermask[creekordermask != 0] * i
         # Clear the mask
@@ -828,7 +831,8 @@ def process_creek_ordering(ordermax, Z, skeleton, outletdetection, nbbreaches):
         # Assign creek orders
         creekordersing[creekordermask != 0] = creekordermask[creekordermask != 0] * i
         # Thicken the mask i times
-        creekordermask = bwmorph_thicken(creekordermask, i)
+        # creekordermask = bwmorph_thicken(creekordermask, i)
+        creekordermask = dilation(creekordermask, disk(1))
         # Assign creek orders to thickened mask
         creekorder[creekordermask != 0] = creekordermask[creekordermask != 0] * i
         # Clear the mask
@@ -862,7 +866,8 @@ def process_creek_ordering(ordermax, Z, skeleton, outletdetection, nbbreaches):
         # Assign creek orders
         creekordersing[creekordermask != 0] = creekordermask[creekordermask != 0] * i
         # Thicken the mask i times
-        creekordermask = bwmorph_thicken(creekordermask, i)
+        # creekordermask = bwmorph_thicken(creekordermask, i)
+        creekordermask = dilation(creekordermask, disk(1))
         # Assign creek orders to thickened mask
         creekorder[creekordermask != 0] = creekordermask[creekordermask != 0] * i
         # Clear the mask
@@ -1205,7 +1210,8 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
         # Assign creek orders
         creekordersing[creekordermask != 0] = creekordermask[creekordermask != 0] * i
         # Thicken the mask i times
-        creekordermask = bwmorph_thicken(creekordermask, i)
+        # creekordermask = bwmorph_thicken(creekordermask, i)
+        creekordermask = dilation(creekordermask, disk(1))
         # Assign creek orders to thickened mask
         creekorder[creekordermask != 0] = creekordermask[creekordermask != 0] * i
         # Clear the mask
@@ -1462,7 +1468,8 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
         # Assign creek orders
         creekordersing[creekordermask != 0] = creekordermask[creekordermask != 0] * i
         # Thicken the mask i times
-        creekordermask = bwmorph_thicken(creekordermask, i)
+        # creekordermask = bwmorph_thicken(creekordermask, i)
+        creekordermask = dilation(creekordermask, disk(1))
         # Assign creek orders to thickened mask
         creekorder[creekordermask != 0] = creekordermask[creekordermask != 0] * i
         # Clear the mask
@@ -1737,7 +1744,8 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
         # Assign creek orders
         creekordersing[creekordermask != 0] = creekordermask[creekordermask != 0] * i
         # Thicken the mask i times
-        creekordermask = bwmorph_thicken(creekordermask, i)
+        # creekordermask = bwmorph_thicken(creekordermask, i)
+        creekordermask = dilation(creekordermask, disk(1))
         # Assign creek orders to thickened mask
         creekorder[creekordermask != 0] = creekordermask[creekordermask != 0] * i
         # Clear the mask
@@ -1774,7 +1782,8 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
         # Assign creek orders
         creekordersing[creekordermask != 0] = creekordermask[creekordermask != 0] * i
         # Thicken the mask i times
-        creekordermask = bwmorph_thicken(creekordermask, i)
+        # creekordermask = bwmorph_thicken(creekordermask, i)
+        creekordermask = dilation(creekordermask, disk(1))
         # Assign creek orders to thickened mask
         creekorder[creekordermask != 0] = creekordermask[creekordermask != 0] * i
         # Clear the mask
@@ -2571,10 +2580,83 @@ def bwmorph_diag(image):
 def bwmorph_thicken(image, iterations):
     """Thicken the image by n iterations"""
     result = image.copy()
-    kernel = np.ones((3,3), dtype=bool)
     for _ in range(iterations):
-        result = ndimage.binary_dilation(result, kernel)
+        result = dilation(result, disk(1))
     return result
+
+# def bwmorph_thicken_matlab(image, n_iter=np.inf):
+#     """
+#     Implement MATLAB-style morphological thickening.
+#     Uses hit-or-miss transformations to add border pixels while preserving topology.
+    
+#     Parameters:
+#     -----------
+#     image : ndarray
+#         Binary input image
+#     n_iter : int or np.inf
+#         Number of iterations to perform
+        
+#     Returns:
+#     --------
+#     ndarray : Thickened binary image
+#     """
+#     # Convert to boolean if not already
+#     img = image.astype(bool)
+    
+#     # Define the hit-or-miss kernels for thickening
+#     # These are the standard MATLAB kernels for 8-connectivity
+#     hm_kernels = [
+#         np.array([[0, 0, 0],
+#                  [0, 0, 1],
+#                  [0, 1, 0]], dtype=bool),
+#         np.array([[0, 0, 0],
+#                  [1, 0, 0],
+#                  [0, 1, 0]], dtype=bool),
+#         np.array([[0, 1, 0],
+#                  [0, 0, 1],
+#                  [0, 0, 0]], dtype=bool),
+#         np.array([[0, 1, 0],
+#                  [1, 0, 0],
+#                  [0, 0, 0]], dtype=bool)
+#     ]
+    
+#     # Add rotated versions of the kernels
+#     all_kernels = []
+#     for kernel in hm_kernels:
+#         all_kernels.extend([
+#             kernel,
+#             np.rot90(kernel, 1),
+#             np.rot90(kernel, 2),
+#             np.rot90(kernel, 3)
+#         ])
+    
+#     # Initialize iteration counter and previous result
+#     n = 0
+#     prev = None
+    
+#     while n < n_iter:
+#         result = img.copy()
+        
+#         # Apply each hit-or-miss kernel
+#         for kernel in all_kernels:
+#             # Create the inverse kernel for background matching
+#             k_inv = np.logical_not(kernel)
+            
+#             # Perform hit-or-miss transform
+#             hm = ndimage.binary_hit_or_miss(img, structure1=kernel, structure2=k_inv)
+            
+#             # Add matched pixels to result
+#             result = np.logical_or(result, hm)
+        
+#         # Check if image has changed
+#         if prev is not None and np.array_equal(prev, result):
+#             break
+            
+#         img = result
+#         prev = result
+#         n += 1
+        
+#     return img
 
 # def bwmorph_clean(image):
 #     """Remove isolated pixels"""

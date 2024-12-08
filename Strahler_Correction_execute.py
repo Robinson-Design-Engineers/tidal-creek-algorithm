@@ -11,6 +11,7 @@ skeleton = variables["skeleton"]
 X = variables["X"]
 Y = variables["Y"]
 creek_order = variables["creek_order"]
+creek_order_single = variables["creek_order_single"]
 pts = variables["pts"]
 order_max = variables["order_max"]
 
@@ -52,7 +53,7 @@ def convert_to_numpy(data, dtype=None):
         print("Data sample:", data[:2] if isinstance(data, list) else data)
         raise
 
-def main(skeleton, X, Y, creek_order, pts, order_max):
+def main(skeleton, X, Y, creek_order, creek_order_single, pts, order_max):
     """Execute creek network analysis with proper data validation and conversion"""
     # print("\nInput data information:")
     # print_data_info("skeleton", skeleton)
@@ -100,10 +101,10 @@ def main(skeleton, X, Y, creek_order, pts, order_max):
 
     try:
         # print("\nInitializing Creek Network Analyzer...")
-        analyzer = CreekNetworkAnalyzer(skeleton, X, Y, creek_order, pts, order_max)
+        analyzer = CreekNetworkAnalyzer(skeleton, X, Y, creek_order, creek_order_single, pts, order_max)
         
         # print("Processing creek orders...")
-        # analyzer.swap_creek_orders()
+        analyzer.swap_creek_orders()
         
         # print("Launching GUI...")
         print("GUI Instructions:")
@@ -144,7 +145,7 @@ if __name__ == "__main__":
         #     if isinstance(creek_order[0], list):
         #         print("First inner element:", creek_order[0][0])
         
-        main(skeleton, X, Y, creek_order, pts, order_max)
+        main(skeleton, X, Y, creek_order, creek_order_single, pts, order_max)
         
     except Exception as e:
         print(f"Error loading data: {e}")
