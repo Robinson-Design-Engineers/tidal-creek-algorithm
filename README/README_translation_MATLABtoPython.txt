@@ -16,7 +16,7 @@ Chirol's Dataset and original code is available for download here: http://dx.doi
 
 CHIROL_CREEK_EXTRACTION_2024.m:
 
-Step 1:
+Section 1:
 - had to change out GUI file selection for manual filepath option again - Python GUI should work, Sam just doesn't have experience or see need to debug at this step.
 - filename for UserVar .txt file is passed as one argument from readvardef.py file's readvardef function
 - had some issues when trying to use simple exec() to load variable names from UserVar .txt file, ChatGPT came up with fix by setting .txt file variables as global variables
@@ -24,10 +24,10 @@ Step 1:
 - changed '\' backward slash in MATLAB to '/' forward slash for filepaths - backward slash does not seem as universally compatible depending on operating system
 - readvardef function is in .py file, rest of step 1 is in .ipynb jupyter notebook cell
 
-Step 2:
+Section 2:
 - changed X2 = X[::resamplestep, ::resamplestep] to X2 = X[::resamplestep] -> X2 was 2D in Matlab, maybe not in Python, gave error when trying to treat it as such. It makes sense this 1D indexing in Python.
 
-Step 3:
+Section 3:
 - GUI used to select thresholds for hypsometry and slope curves to detect creek extents
 - GUI in python needs to be run from a .py file in terminal - instructions are in Jupyter notebook .ipynb file
 - hex star markers in hypsometry curve were changed to X markers
@@ -43,7 +43,7 @@ Step 3:
 - If threshold was set to 1, manual input requires clicking on slope and hypsometry curves. Keep clicking until registered - should display small red cross briefly, then go to next figure. Once all thresholds are chosen, final figures will be displayed.
 - Creek_Detection.py saves raw creek mask as .h5 file
 
-Step 4:
+Section 4:
 - Creek_Repair.py file contains all functions needed for this step
 - saving to .h5 files instead of .mat files
 - MATLAB has a lot of built in functions for image processing, Claude AI created a lot of versions of Python code to smooth and fill holes and noise. The final version has alternate functions for reconnect and repair functions ending in "_diagnostic" - this has debugging print statements and plot outputs. 
@@ -51,10 +51,18 @@ Step 4:
 - Overall, a lot of functions look different than MATLAB - Python achieves a smoothed and filtered mask, but with different functions.
 - Sam used Claude AI to put this together, and it tested to have very similar outputs for Ashleyville Marsh's ashleyville site compared to MATLAB.
 
-Step 5:
+Section 5:
 - all functions are found in the Creek_Ordering.py file
 - MATLAB uses built in packages for image processing like bwmorph - Python uses the scikit-image package's functions
 - any "_diagnostic" or commented out sections in the .py file are generally debugging print statements, to be used if the algorithm is not running properly
 - branch point detection was being troublesome for Python - developed a new method in which only certain linkages qualify for either to ensure there are not neighboring branch points
 - the process_outlet_detection() function took some iterations through Claude AI to get right - in checking for where to connect the skeleton to the edge of the land mask, the border of the mask is used to look for possible creek outlets within 5 pixels of this border. This may need to be changed if problems arise in the future with no outlets being detected.
 - added an output of "skeleton_breached" that saves the skeleton with the outlet breach.
+- geodesic distance calculation was formed as a function by ClaudeAI using a graph approach to calculate the distance along the network skeleton rather than euclidean distance, similar to the way geodesic distance is calculated in MATLAB
+- MATLAB indexing of matrices relies on linear indexing, where the python version uses row, column indexing, where rows are x and columns are y as is the norm in image matrices; although sometimes linear indices are used
+- some arguments of functions seemed to switch x and y for the kth point when calculating normal vectors using the normal_coord functions - this was kept true to the MATLAB unless errors arised, where x and y were switched to what seemed correct and consistent
+- instead of just passing isolated points as in MATLAB, these points are removed and set to False in the image matrix
+- the creek mask is thickened using binary dilation rather than MATLAB's bwmorph_thicken
+- while loop 4 out of 4 was not kept as a while loop in AnnaM's MATLAB code, but was used as a while loop for the python translation
+
+Section 6:

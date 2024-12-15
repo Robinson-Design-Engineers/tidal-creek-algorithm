@@ -137,6 +137,7 @@ def process_creek_ordering(ordermax, Z, skeleton, outletdetection, nbbreaches):
 
     # Initialize variables
     B, E, PTS = analyze_skeleton(skeleton)
+    all_pts = PTS
     STRAHLER = np.zeros_like(E) # contains sinous length
     STRAIGHTDIST = np.zeros_like(E) # contains straight length
     IDXSEG = np.zeros((skeleton.shape[0], 6)) # contains coordinates of the normal vector (end and mid points)
@@ -964,7 +965,7 @@ def process_creek_ordering(ordermax, Z, skeleton, outletdetection, nbbreaches):
     IDXSEG = np.array(IDXSEG)
     IDXBRANCH = np.array(IDXBRANCH)
     
-    return STRAHLER, STRAIGHTDIST, IDXSEG, IDXBRANCH, idxbreach, xbreach, ybreach, skeleton_breached, creekorder, creekordersing, PTS, list(range(1, i)) # I think this ID return is correct? -SamK
+    return STRAHLER, STRAIGHTDIST, IDXSEG, IDXBRANCH, idxbreach, xbreach, ybreach, skeleton_breached, creekorder, creekordersing, all_pts, list(range(1, i)) # I think this ID return is correct? -SamK
 
 
 def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nbbreaches): # for debugging

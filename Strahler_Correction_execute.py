@@ -15,6 +15,11 @@ creek_order_single = variables["creek_order_single"]
 pts = variables["pts"]
 order_max = variables["order_max"]
 
+STRAHLER = variables["STRAHLER"]
+STRAIGHTDIST = variables["STRAIGHTDIST"]
+IDXBRANCH = variables["IDXBRANCH"]
+IDXSEG = variables["IDXSEG"]
+
 def create_meshgrid(x, y):
     """Create proper 2D meshgrid from 1D coordinate arrays"""
     # Ensure inputs are numpy arrays
@@ -101,7 +106,7 @@ def main(skeleton, X, Y, creek_order, creek_order_single, pts, order_max):
 
     try:
         # print("\nInitializing Creek Network Analyzer...")
-        analyzer = CreekNetworkAnalyzer(skeleton, X, Y, creek_order, creek_order_single, pts, order_max)
+        analyzer = CreekNetworkAnalyzer(skeleton, X, Y, creek_order, creek_order_single, pts, order_max, STRAHLER, STRAIGHTDIST, IDXBRANCH, IDXSEG)
         
         # print("Processing creek orders...")
         analyzer.swap_creek_orders()
@@ -109,8 +114,8 @@ def main(skeleton, X, Y, creek_order, creek_order_single, pts, order_max):
         # print("Launching GUI...")
         print("GUI Instructions:")
         print("1. Click 'Correct Creek Segment' to start segment correction")
-        print("2. Click two points on the right plot to select a segment")
-        print("3. Choose the order number from the dropdown")
+        print("2. Choose the order number from the dropdown")
+        print("3. Click two points on the right plot to select a segment")
         print("4. Repeat for other segments as needed")
         print("5. Click 'Finish Correction' when done")
         
