@@ -22,11 +22,11 @@ class CreekNetworkAnalyzer:
         self.pts = np.asarray(pts)
         self.colorbar = None  # Store colorbar reference
 
-        # load variables
-        self.STRAHLER = STRAHLER
-        self.STRAIGHTDIST = STRAIGHTDIST
-        self.IDXBRANCH = IDXBRANCH
-        self.IDXSEG = IDXSEG
+        # Convert variables to numpy arrays
+        self.STRAHLER = np.asarray(STRAHLER, dtype=float)
+        self.STRAIGHTDIST = np.asarray(STRAIGHTDIST, dtype=float)
+        self.IDXBRANCH = np.asarray(IDXBRANCH, dtype=float)
+        self.IDXSEG = np.asarray(IDXSEG, dtype=float)
         
         # Get dimensions from skeleton
         self.rows, self.cols = self.skeleton.shape
@@ -76,6 +76,58 @@ class CreekNetworkAnalyzer:
         for _ in range(iterations):
             result = dilation(result, disk(1))
         return result
+    
+    def analyze_skeleton(self, skeleton):
+        # Define the 10 branch point kernels
+        branch_kernels = [
+            np.array([[0, 1, 0], [1, 0, 1], [0, 1, 0]]),
+            np.array([[1, 0, 1], [0, 0, 0], [1, 0, 1]]),
+            np.array([[0, 1, 0], [1, 0, 0], [0, 0, 1]]),
+            np.array([[0, 1, 0], [0, 0, 1], [1, 0, 0]]),
+            np.array([[1, 0, 0], [0, 0, 1], [0, 1, 0]]),
+            np.array([[0, 0, 1], [1, 0, 0], [0, 1, 0]]),
+            np.array([[1, 0, 1], [0, 0, 0], [0, 1, 0]]),
+            np.array([[0, 0, 1], [1, 0, 0], [0, 0, 1]]),
+            np.array([[0, 1, 0], [0, 0, 0], [1, 0, 1]]),
+            np.array([[1, 0, 0], [0, 0, 1], [1, 0, 0]])
+        ]
+
+        # Define the neighbor check kernels
+        neighbor_check_kernels = [
+            np.array([[1, 1, 1], [0, 0, 0], [0, 0, 0]]),
+            np.array([[0, 0, 1], [0, 0, 1], [0, 0, 1]]),
+            np.array([[0, 0, 0], [0, 0, 0], [1, 1, 1]]),
+            np.array([[1, 0, 0], [1, 0, 0], [1, 0, 0]]),
+            np.array([[1, 1, 0], [1, 0, 0], [0, 0, 0]]),
+            np.array([[0, 1, 1], [0, 0, 1], [0, 0, 0]]),
+            np.array([[0, 0, 0], [0, 0, 1], [0, 1, 1]]),
+            np.array([[0, 0, 0], [1, 0, 0], [1, 1, 0]]),
+            np.array([[1, 1, 0], [1, 0, 0], [0, 0, 0]])
+        ]
+
+        # Identify branch points using the 10 kernels
+        B = np.zeros_like(skeleton, dtype=bool)
+        for kernel in branch_kernels:
+            conv_result = ndimage.convolve(skeleton.astype(int), kernel, mode='constant', cval=0)
+            B |= (conv_result >= 3) & skeleton
+
+        # Exclude points that match the neighbor check kernels
+        for check_kernel in neighbor_check_kernels:
+            check_result = ndimage.convolve(skeleton.astype(int), check_kernel, mode='constant', cval=0)
+            B &= ~((check_result == 3) & skeleton)
+        
+        # Identify endpoints
+        end_kernel = np.array([[1, 1, 1],
+                            [1, 0, 1],
+                            [1, 1, 1]])
+        E_neighbor_count = ndimage.convolve(skeleton.astype(int), end_kernel, mode='constant', cval=0) 
+        # E = (E_neighbor_count == 1) & skeleton  # Endpoints have exactly 1 neighbor
+        E = ((E_neighbor_count == 1) | (E_neighbor_count == 0)) & skeleton # Endpoints have exactly 1 neighbor or are isolated points
+
+        # Combine branch points and endpoints
+        PTS = B | E
+
+        return B, E, PTS
 
     def create_correction_gui(self):
         # 6.2 in MATLAB CHIROL_CREEK_ALGORITHM_2024.m -SamK
@@ -353,12 +405,6 @@ class CreekNetworkAnalyzer:
     def process_corrected_segments(self):
         """Process segments that were corrected through the GUI interface."""
         
-        # # Initialize arrays if they don't exist - I don't think this should be needed -Sam
-        # self.STRAHLER = np.zeros((self.order_max + 1, 100))  # Assuming max 100 segments per order
-        # self.STRAIGHTDIST = np.zeros((self.order_max + 1, 100))
-        # self.IDXBRANCH = np.zeros((self.order_max + 1, 100))
-        # self.IDXSEG = np.zeros((self.order_max + 1, 600))  # 6 coordinates per segment, 100 segments
-        
         # Process each corrected segment
         for k in range(len(self.corr_order)):
             # Select correct position in the Strahler table
@@ -373,10 +419,8 @@ class CreekNetworkAnalyzer:
             else:
                 colind = 0
                 
-            # Find branch points
-            B = skeletonize(self.skeleton)
-            E = skeletonize(self.skeleton)
-            PTS = B + E
+            # # Find branch points - doesn't seem needed -SamK
+            # B, E, PTS = analyze_skeleton(self.skeleton)
             
             # Get coordinates of corrected segment
             CORRIDX_k = self.corr_idx[k]
@@ -484,12 +528,19 @@ class CreekNetworkAnalyzer:
                 x2, y2 = x1new, y1new
                 x3, y3 = x2new, y2new
                 x1, y1 = xm, ym
-                
-                # Store segment coordinates
-                idx_seg_row = self.IDXSEG[order, :]
-                non_zero_count = np.count_nonzero(idx_seg_row)
-                colstart = non_zero_count
-                self.IDXSEG[order, colstart:colstart+6] = [y1, x1, y2, x2, y3, x3]
+
+                # Find first empty row in IDXSEG
+                empty_rows = np.where(~self.IDXSEG.any(axis=1))[0]
+                if len(empty_rows) > 0:
+                    row_idx = empty_rows[0]
+                else:
+                    # No empty rows, need to expand array
+                    current_rows = self.IDXSEG.shape[0]
+                    self.IDXSEG = np.vstack([self.IDXSEG, np.zeros((1, 6))])
+                    row_idx = current_rows
+
+                # Store the coordinates
+                self.IDXSEG[row_idx, :] = [y1, x1, y2, x2, y3, x3]
                 
                 # Update creek order visualization
                 creek_order_mask = skeletonize(Dmask)
