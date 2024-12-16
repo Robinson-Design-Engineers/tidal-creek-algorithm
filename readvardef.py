@@ -6,7 +6,7 @@ from tkinter import filedialog, Tk
 def readvardef(filename_UserVar):
 # def readvardef(filename_UserVar): # manual input option
     # Initialize variables
-    name = elev = elevmeta = slope = slopemeta = resamplestep = threshold = detrendyn = outletdetection = None
+    name = shortname = elev = elevmeta = slope = slopemeta = resamplestep = threshold = detrendyn = outletdetection = None
     HAT = MHWS = MHWN = MLWS = MLWN = Cth = Ctharea = LZth = LZtharea = HZth = HZtharea = None
     nbbreaches = noisethreshold = reconnect = reconnectiondist = ordermax = None
     filtersmall1 = filterlarge1 = filtersmall2 = filterlarge2 = smoothing = None
@@ -45,6 +45,7 @@ def readvardef(filename_UserVar):
     
     # Now assign variables from exec_globals
     name = exec_globals.get("name")
+    shortname = exec_globals.get("shortname")
     elev = exec_globals.get("elev")
     elevmeta = exec_globals.get("elevmeta")
     slope = exec_globals.get("slope")
@@ -83,7 +84,7 @@ def readvardef(filename_UserVar):
 
     
     # Create the dictionary structures
-    FILENAMES = {"name": name, "elev": elev, "elevmeta": elevmeta, "slope": slope, "slopemeta": slopemeta}
+    FILENAMES = {"name": name, "shortname": shortname, "elev": elev, "elevmeta": elevmeta, "slope": slope, "slopemeta": slopemeta}
     PROCESSING = {"resamplestep": resamplestep, "threshold": threshold, "detrendyn": detrendyn, "outletdetection": outletdetection}
     TIDE = {"HAT": HAT, "MHWS": MHWS, "MLWS": MLWS, "MHWN": MHWN, "MLWN": MLWN}
     THRESHOLDS = {"Cth": Cth, "Ctharea": Ctharea, "LZth": LZth, "LZtharea": LZtharea, "HZth": HZth, "HZtharea": HZtharea}

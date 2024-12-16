@@ -2,7 +2,8 @@
 # FILENAMES
 # =========================================
 
-name='Freiston 2014'						# Name of the site, will appear in figures  	
+name='Freiston 2014'						# Name of the site, will appear in figures  
+shortname='Freis14'                         # Shortname of site, used in saved filenames 
 elev='INPUTS/elevation_freiston2014.h5'				# Path and name of the elevation map .txt file
 elevmeta='INPUTS/elevation_freiston2014_metadata.h5'		# Path and name of the elevation map .txt metadata file
 slope='INPUTS/slope_freiston2014.h5'				# Path and name of the slope map .txt file

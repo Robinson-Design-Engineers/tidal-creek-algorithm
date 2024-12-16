@@ -23,6 +23,7 @@ Section 1:
 - had to change all '%' MATLAB comment symbols to '#' Python comment symbols in UserVar .txt file
 - changed '\' backward slash in MATLAB to '/' forward slash for filepaths - backward slash does not seem as universally compatible depending on operating system
 - readvardef function is in .py file, rest of step 1 is in .ipynb jupyter notebook cell
+- added a "shortname" variable to the UserVar.txt input file - this is used for adding an identifier name to saved files rather than the "name" variable, which is used in titles and inclueds spaces
 
 Section 2:
 - changed X2 = X[::resamplestep, ::resamplestep] to X2 = X[::resamplestep] -> X2 was 2D in Matlab, maybe not in Python, gave error when trying to treat it as such. It makes sense this 1D indexing in Python.
@@ -76,3 +77,6 @@ Section 6:
 - perhaps future implementation could use point selection to create new branch or end points.
 
 Section 7:
+- not many differences - just plotting product of creek ordering and corrections from Sections 5 and 6
+
+Section 8:
