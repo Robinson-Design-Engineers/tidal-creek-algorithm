@@ -355,12 +355,30 @@ def figure_raw_creek_mask(creekmask):
     # equivalent in matplotlib. If needed, we can implement a custom solution.
     plt.show()
 
-
 def main(threshold, Zs, Z, gs, Cth, HZth, LZth, X, Y, X2, Y2, HZtharea, LZtharea, Ctharea):
     if threshold == 0:
         creek, CumArea, binrange, CumAreas, binranges, _, _ = creek_detection(Zs, Z, gs, Cth, HZth, LZth)
     else:
         creek, CumArea, binrange, CumAreas, binranges, HZth, LZth, Cth, HZtharea, LZtharea, Ctharea = creek_detection_manual(Zs, Z, gs)
+
+    # Create dictionary with all variables
+    variables_correction = {
+        "creek": creek,
+        "CumArea": CumArea,
+        "binrange": binrange,
+        "CumAreas": CumAreas,
+        "binranges": binranges
+    }
+
+    # Convert all numpy arrays to lists
+    variables_correction = {
+        key: value.tolist() if isinstance(value, np.ndarray) else value 
+        for key, value in variables_correction.items()
+    }
+
+    # Save to a JSON file
+    with open("processed_variables_Creek_Detection.json", "w") as f:
+        json.dump(variables_correction, f)
 
     # Map the creek network based on the threshold criteria
     # Ensure Z is a numpy array
