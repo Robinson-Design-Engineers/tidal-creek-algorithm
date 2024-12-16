@@ -58,17 +58,51 @@ def convert_to_numpy(data, dtype=None):
         print("Data sample:", data[:2] if isinstance(data, list) else data)
         raise
 
+def save_processed_values(analyzer, skeleton, X, Y, pts, order_max):
+    """
+    Save the processed values from the CreekNetworkAnalyzer to a JSON file.
+    
+    Parameters:
+    analyzer (CreekNetworkAnalyzer): The analyzer instance after processing
+    skeleton (np.ndarray): The skeleton array
+    X (np.ndarray): X coordinates
+    Y (np.ndarray): Y coordinates
+    pts (np.ndarray): Points array
+    order_max (int): Maximum order value
+    """
+    # Create dictionary with all variables
+    variables_correction = {
+        "skeleton": skeleton,
+        "X": X,
+        "Y": Y,
+        "creek_order": analyzer.creek_order,
+        "creek_order_single": analyzer.creek_order_single,
+        "creek_order_swapped": analyzer.creek_order_swapped,
+        "creek_order_single_swapped": analyzer.creek_order_single_swapped,
+        "PTS": pts,
+        "order_max": order_max,
+        "STRAHLER": analyzer.STRAHLER,
+        "STRAIGHTDIST": analyzer.STRAIGHTDIST,
+        "IDXBRANCH": analyzer.IDXBRANCH,
+        "IDXSEG": analyzer.IDXSEG
+    }
+
+    # Convert all numpy arrays to lists
+    variables_correction = {
+        key: value.tolist() if isinstance(value, np.ndarray) else value 
+        for key, value in variables_correction.items()
+    }
+
+    # Save to a JSON file
+    with open("processed_variables_Strahler_Correction.json", "w") as f:
+        json.dump(variables_correction, f)
+    
+    print("Processed values saved to 'processed_variables_Strahler_Correction.json'")
+
+
 def main(skeleton, X, Y, creek_order, creek_order_single, pts, order_max):
     """Execute creek network analysis with proper data validation and conversion"""
-    # print("\nInput data information:")
-    # print_data_info("skeleton", skeleton)
-    # print_data_info("X", X)
-    # print_data_info("Y", Y)
-    # print_data_info("creek_order", creek_order)
-    # print_data_info("pts", pts)
-    # print_data_info("order_max", order_max)
 
-    # print("\nConverting inputs to numpy arrays...")
     try:
         # Convert to numpy arrays first
         skeleton = convert_to_numpy(skeleton, dtype=bool)
@@ -79,7 +113,6 @@ def main(skeleton, X, Y, creek_order, creek_order_single, pts, order_max):
         order_max = int(order_max)
 
         # Create proper meshgrids for X and Y
-        # print("\nCreating coordinate meshgrids...")
         X, Y = create_meshgrid(X_1d, Y_1d)
         
         # Ensure all arrays have the same shape
@@ -93,25 +126,18 @@ def main(skeleton, X, Y, creek_order, creek_order_single, pts, order_max):
         if pts.shape != target_shape:
             pts = pts[:target_shape[0], :target_shape[1]]
 
-        # print("\nArray shapes after conversion:")
-        # print(f"skeleton: {skeleton.shape}")
-        # print(f"X: {X.shape}")
-        # print(f"Y: {Y.shape}")
-        # print(f"creek_order: {creek_order.shape}")
-        # print(f"pts: {pts.shape}")
-
     except Exception as e:
         print(f"Error during data conversion: {e}")
         return
 
     try:
-        # print("\nInitializing Creek Network Analyzer...")
+        # Initialize analyzer
         analyzer = CreekNetworkAnalyzer(skeleton, X, Y, creek_order, creek_order_single, pts, order_max, STRAHLER, STRAIGHTDIST, IDXBRANCH, IDXSEG)
         
-        # print("Processing creek orders...")
+        # Process creek orders
         analyzer.swap_creek_orders()
         
-        # print("Launching GUI...")
+        # Launch GUI
         print("GUI Instructions:")
         print("1. Click 'Correct Creek Segment' to start segment correction")
         print("2. Choose the order number from the dropdown")
@@ -121,8 +147,12 @@ def main(skeleton, X, Y, creek_order, creek_order_single, pts, order_max):
         
         analyzer.create_correction_gui()
         
+        # Process corrected segments
         print("Processing corrected segments...")
         analyzer.process_corrected_segments()
+
+        # Save processed values
+        save_processed_values(analyzer, skeleton, X, Y, pts, order_max)
         
         print("Analysis complete!")
         
@@ -132,24 +162,6 @@ def main(skeleton, X, Y, creek_order, creek_order_single, pts, order_max):
 
 if __name__ == "__main__":
     try:
-        # # Load your data
-        # creek_order = np.load('creek_order.npy', allow_pickle=True).tolist()  # If it's saved as a list
-        # skeleton = np.load('skeleton.npy')
-        # X = np.load('X.npy')
-        # Y = np.load('Y.npy')
-        # pts = np.load('pts.npy')
-        # order_max = 6
-
-        # # Print initial data structure
-        # print("\nInitial data loaded:")
-        # print_data_info("creek_order", creek_order)
-
-        # if isinstance(creek_order, list):
-        #     print("Sample of creek_order list:")
-        #     print("First element:", creek_order[0])
-        #     if isinstance(creek_order[0], list):
-        #         print("First inner element:", creek_order[0][0])
-        
         main(skeleton, X, Y, creek_order, creek_order_single, pts, order_max)
         
     except Exception as e:
