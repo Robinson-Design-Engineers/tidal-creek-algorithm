@@ -64,5 +64,15 @@ Section 5:
 - instead of just passing isolated points as in MATLAB, these points are removed and set to False in the image matrix
 - the creek mask is thickened using binary dilation rather than MATLAB's bwmorph_thicken
 - while loop 4 out of 4 was not kept as a while loop in AnnaM's MATLAB code, but was used as a while loop for the python translation
+- one bug is noted in github issues tab for outlet point inclusion
 
 Section 6:
+- correction GUI works mostly similar to MATLAB
+- snapping function is added to select only either branch or end points
+- green dots appear for snapped points, the second point does not show a green dot, the creek orders are just immediately updated
+- the geodesic distance function formed in python for step 5 is used to create the path between the two selected points
+- one bug is noted in github issues tab for inclusion of a branch point in the new order - this is something that can be corrected currently, but could be made more efficient in future
+- zooming is allowed in python tkinter GUI, this allows for more accurate selection. Zoom windows will be held even after the creek order plot on the left is updated.
+- perhaps future implementation could use point selection to create new branch or end points.
+
+Section 7:
