@@ -83,13 +83,18 @@ def process_xsects(creekmask, creek, IDXSEG, ordermax, figview=False):
             ax.plot([], [], color=color, linewidth=2, label=f'Order {i+1}')
         ax.legend()
     
-    inverse_order = np.arange(ordermax, 0, -1) - 1
+    inverse_order = np.arange(ordermax, 0, -1)
     
     # Process each segment
     for order in range(ordermax):
+        print('order = ', order)
         iter_idx = 0
         for seg in range(0, IDXSEG.shape[1], 6):
+            print(' IDXSEG.shape[1]')
+            print(' seg = ', seg)
             if IDXSEG[order, seg] == 0:  # Skip if no segment
+                print('  IDXSEG[order, seg] = ', IDXSEG[order, seg])
+                print('  skipped bc no segment')
                 continue
                 
             # Get segment coordinates
@@ -102,18 +107,20 @@ def process_xsects(creekmask, creek, IDXSEG, ordermax, figview=False):
             
             if creekmask[x1, y1] == 1:  # Check if middle point is on creek
                 # Generate line points using Bresenham's algorithm
-                line_start = list(bresenham(x2, y2, x1, y1))
-                line_end = list(bresenham(x3, y3, x1, y1))
-                
-                xline = np.array([x for x, _ in line_start + line_end])
-                yline = np.array([y for _, y in line_start + line_end])
-                
+                xlinestart, ylinestart = zip(*bresenham(x2, y2, x1, y1))
+                xlineend, ylineend = zip(*bresenham(x3, y3, x1, y1))
+                # Using zip(*...), you "unpack" the tuples into two separate lists: one for x coordinates and one for y coordinates. -ChatGPT
+
+                # Combine the results
+                xline = xlinestart + xlineend
+                yline = ylinestart + ylineend
+
                 # Remove out of bounds indices
                 valid_coords = (xline >= 0) & (yline >= 0) & \
                              (xline < creekmask.shape[0]) & (yline < creekmask.shape[1])
                 xline = xline[valid_coords]
                 yline = yline[valid_coords]
-                
+                # BOOKMARK
                 if len(xline) > 1:
                     # Calculate cross-section measurements
                     idx = np.ravel_multi_index((xline, yline), creek.shape)

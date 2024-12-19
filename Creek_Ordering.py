@@ -141,8 +141,8 @@ def process_creek_ordering(ordermax, Z, skeleton, outletdetection, nbbreaches):
     STRAHLER = np.zeros_like(E) # contains sinous length
     STRAIGHTDIST = np.zeros_like(E) # contains straight length
     IDXSEG = np.zeros((skeleton.shape[0], 6)) # contains coordinates of the normal vector (end and mid points)
-    # IDXBRANCH = np.zeros_like(skeleton, dtype=int) # contains indices of all branch points
-    IDXBRANCH = np.zeros_like(skeleton, dtype=[('row', int), ('col', int)])
+    IDXBRANCH = np.zeros_like(skeleton, dtype=int) # contains indices of all branch points
+    # IDXBRANCH = np.zeros_like(skeleton, dtype=[('row', int), ('col', int)])
     creekorder = np.zeros_like(skeleton, dtype=int)
     creekordersing = np.zeros_like(skeleton, dtype=int)
     skeleton_chopped = skeleton # we keep skeleton intact and remove segments from skeleton_chopped
@@ -170,7 +170,7 @@ def process_creek_ordering(ordermax, Z, skeleton, outletdetection, nbbreaches):
         B_loc = np.argwhere(B) # np.argwhere returns a 2D array of coordinates
         E_loc = np.argwhere(E)
         Dmask = np.zeros_like(skeleton_chopped, dtype=bool)
-        col = 1
+        col = 0 # starting column index for normal vector coordinate in IDXSEG
         coords = np.argwhere(E)
         y, x = coords[:, 0], coords[:, 1]
         
@@ -253,9 +253,15 @@ def process_creek_ordering(ordermax, Z, skeleton, outletdetection, nbbreaches):
                 # Create normal vectors to each segment and store their coordinates
                 # should it be y[k], x[k] or x[k], y[k]? -SamK
                 x1, y1, x2, y2, x3, y3, _, _ = normal_coord(DD, distanceToEndPt, y[k], x[k], limit)
-                # IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
-                # col += 6
-                IDXSEG[i, :] = [x1, y1, x2, y2, x3, y3] # it seems column number is irrelevant since IDXSEG initialized with 6 columns
+                
+                if col < IDXSEG.shape[1]:
+                    IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
+                else:
+                    new_values = [x1, y1, x2, y2, x3, y3]
+                    IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
+                    IDXSEG[i, -6:] = new_values
+
+                col += 6
 
                 # Prepare to remove the segments order i
                 Dmask[DD < distanceToEndPt] = True
@@ -300,9 +306,15 @@ def process_creek_ordering(ordermax, Z, skeleton, outletdetection, nbbreaches):
 
                 # Create normal vectors to each segment and store their coordinates
                 x1, y1, x2, y2, x3, y3, _, _ = normal_coord(DD, distanceToEndPt, x[k], y[k], limit)
-                # IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
-                # col += 6
-                IDXSEG[i, :] = [x1, y1, x2, y2, x3, y3] # it seems column number is irrelevant since IDXSEG initialized with 6 columns
+                
+                if col < IDXSEG.shape[1]:
+                    IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
+                else:
+                    new_values = [x1, y1, x2, y2, x3, y3]
+                    IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
+                    IDXSEG[i, -6:] = new_values
+
+                col += 6
 
                 # Prepare to remove the segments order i
                 Dmask[DD < distanceToEndPt] = True
@@ -337,9 +349,15 @@ def process_creek_ordering(ordermax, Z, skeleton, outletdetection, nbbreaches):
                 # Create normal vectors to each segment and store their coordinates
                 # should it be y[k], x[k] or x[k], y[k]? -SamK
                 x1, y1, x2, y2, x3, y3, _, _ = normal_coord(DD, distanceToBranchPt, x[k], y[k], limit)
-                # IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
-                # col += 6
-                IDXSEG[i, :] = [x1, y1, x2, y2, x3, y3] # it seems column number is irrelevant since IDXSEG initialized with 6 columns
+                
+                if col < IDXSEG.shape[1]:
+                    IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
+                else:
+                    new_values = [x1, y1, x2, y2, x3, y3]
+                    IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
+                    IDXSEG[i, -6:] = new_values
+
+                col += 6
 
                 # Prepare to remove the segments order i
                 Dmask[DD < distanceToBranchPt] = True
@@ -368,6 +386,7 @@ def process_creek_ordering(ordermax, Z, skeleton, outletdetection, nbbreaches):
 
         # Find the end and branch points of the order i+1 network configuration
         i += 1 # Store order number and move on to the next creek order until skeleton contains only 0
+        col = 0
         B, E, PTS = analyze_skeleton(skeleton_chopped)
         # Update breach points
         E.ravel()[idxbreach] = False
@@ -403,7 +422,7 @@ def process_creek_ordering(ordermax, Z, skeleton, outletdetection, nbbreaches):
         B_loc = np.argwhere(B) # np.argwhere returns a 2D array of coordinates
         E_loc = np.argwhere(E)
         Dmask = np.zeros_like(skeleton_chopped, dtype=bool)
-        col = 1
+        # col = 0
         coords = np.argwhere(E)
         y, x = coords[:, 0], coords[:, 1]
         
@@ -490,9 +509,15 @@ def process_creek_ordering(ordermax, Z, skeleton, outletdetection, nbbreaches):
                 # Create normal vectors to each segment and store their coordinates
                 # should it be y[k2], x[k2] or x[k2], y[k2]? -SamK
                 x1, y1, x2, y2, x3, y3, _, _ = normal_coord(DD, distanceToEndPt, y[k2], x[k2], limit)
-                # IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
-                # col += 6
-                IDXSEG[i, :] = [x1, y1, x2, y2, x3, y3] # it seems column number is irrelevant since IDXSEG initialized with 6 columns
+                
+                if col < IDXSEG.shape[1]:
+                    IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
+                else:
+                    new_values = [x1, y1, x2, y2, x3, y3]
+                    IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
+                    IDXSEG[i, -6:] = new_values
+
+                col += 6
 
                 # Prepare to remove the segments order i
                 Dmask[DD < distanceToEndPt] = True
@@ -537,9 +562,15 @@ def process_creek_ordering(ordermax, Z, skeleton, outletdetection, nbbreaches):
 
                 # Create normal vectors to each segment and store their coordinates
                 x1, y1, x2, y2, x3, y3, _, _ = normal_coord(DD, distanceToEndPt, x[k2], y[k2], limit)
-                # IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
-                # col += 6
-                IDXSEG[i, :] = [x1, y1, x2, y2, x3, y3] # it seems column number is irrelevant since IDXSEG initialized with 6 columns
+                
+                if col < IDXSEG.shape[1]:
+                    IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
+                else:
+                    new_values = [x1, y1, x2, y2, x3, y3]
+                    IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
+                    IDXSEG[i, -6:] = new_values
+
+                col += 6
 
                 # Prepare to remove the segments order i
                 Dmask[DD < distanceToEndPt] = True
@@ -574,9 +605,15 @@ def process_creek_ordering(ordermax, Z, skeleton, outletdetection, nbbreaches):
                 # Create normal vectors to each segment and store their coordinates
                 # should it be y[k], x[k] or x[k], y[k]? -SamK
                 x1, y1, x2, y2, x3, y3, _, _ = normal_coord(DD, distanceToBranchPt, x[k2], y[k2], limit)
-                # IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
-                # col += 6
-                IDXSEG[i, :] = [x1, y1, x2, y2, x3, y3] # it seems column number is irrelevant since IDXSEG initialized with 6 columns
+                
+                if col < IDXSEG.shape[1]:
+                    IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
+                else:
+                    new_values = [x1, y1, x2, y2, x3, y3]
+                    IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
+                    IDXSEG[i, -6:] = new_values
+
+                col += 6
 
                 # Prepare to remove the segments order i
                 Dmask[DD < distanceToBranchPt] = True
@@ -604,6 +641,7 @@ def process_creek_ordering(ordermax, Z, skeleton, outletdetection, nbbreaches):
 
         # Find the end and branch points of the order i+1 network configuration
         # i += 1 # Store order number and move on to the next creek order until skeleton contains only 0
+        # col = 0
         B, E, PTS = analyze_skeleton(skeleton_chopped)
 
         i_check += 1
@@ -634,7 +672,7 @@ def process_creek_ordering(ordermax, Z, skeleton, outletdetection, nbbreaches):
         B_loc = np.argwhere(B) # np.argwhere returns a 2D array of coordinates
         # E_loc = np.argwhere(E)
         Dmask = np.zeros_like(skeleton_chopped, dtype=bool)
-        # col = 1
+        # col = 0
         coords = np.argwhere(B) # different than being based on E in first two while loops -SamK
         y, x = coords[:, 0], coords[:, 1]
 
@@ -728,9 +766,15 @@ def process_creek_ordering(ordermax, Z, skeleton, outletdetection, nbbreaches):
 
             # Create normal vectors to each segment and store their coordinates
             x1, y1, x2, y2, x3, y3, BWrem = normal_coord_test(DD, distanceToEndPt, x[k2], y[k2], limit, skeleton_chopped, B_loctemp)
-            # IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
-            # col += 6
-            IDXSEG[i, :] = [x1, y1, x2, y2, x3, y3] # it seems column number is irrelevant since IDXSEG initialized with 6 columns
+            
+            if col < IDXSEG.shape[1]:
+                    IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
+            else:
+                new_values = [x1, y1, x2, y2, x3, y3]
+                IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
+                IDXSEG[i, -6:] = new_values
+
+            col += 6
 
             # Prepare to remove the segments order i
             # Dmask[DD < distanceToEndPt] = True
@@ -776,9 +820,15 @@ def process_creek_ordering(ordermax, Z, skeleton, outletdetection, nbbreaches):
 
             # Create normal vectors to each segment and store their coordinates
             x1, y1, x2, y2, x3, y3, BWrem = normal_coord_test(DD, distanceToEndPt, x[k2], y[k2], limit, skeleton_chopped, B_loctemp)
-            # IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
-            # col += 6
-            IDXSEG[i, :] = [x1, y1, x2, y2, x3, y3] # it seems column number is irrelevant since IDXSEG initialized with 6 columns
+            
+            if col < IDXSEG.shape[1]:
+                    IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
+            else:
+                new_values = [x1, y1, x2, y2, x3, y3]
+                IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
+                IDXSEG[i, -6:] = new_values
+
+            col += 6
 
             # Prepare to remove the segments order i
             # Dmask[DD < distanceToEndPt] = True
@@ -813,9 +863,15 @@ def process_creek_ordering(ordermax, Z, skeleton, outletdetection, nbbreaches):
 
             # Create normal vectors to each segment and store their coordinates
             x1, y1, x2, y2, x3, y3, BWrem = normal_coord_test(DD, distanceToBranchPt, x[k2], y[k2], limit, skeleton_chopped, B_loctemp)
-            # IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
-            # col += 6
-            IDXSEG[i, :] = [x1, y1, x2, y2, x3, y3] # it seems column number is irrelevant since IDXSEG initialized with 6 columns
+            
+            if col < IDXSEG.shape[1]:
+                    IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
+            else:
+                new_values = [x1, y1, x2, y2, x3, y3]
+                IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
+                IDXSEG[i, -6:] = new_values
+
+            col += 6
 
             # Prepare to remove the segments order i
             # Dmask[DD < distanceToBranchPt] = True
@@ -849,6 +905,7 @@ def process_creek_ordering(ordermax, Z, skeleton, outletdetection, nbbreaches):
 
         # # Find the end and branch points of the order i+1 network configuration
         # i += 1 # Store order number and move on to the next creek order until skeleton contains only 0
+        # col = 0
         skeleton_chopped = bwmorph_clean(skeleton_chopped)
         B, E, PTS = analyze_skeleton(skeleton_chopped)
         B = PTS
@@ -938,9 +995,19 @@ def process_creek_ordering(ordermax, Z, skeleton, outletdetection, nbbreaches):
                                 DD, sinuouslength, x_first, y_first, 
                                 limit, skeleton_chopped, (y_far, x_far)
                             )
-                            # Store coordinates if successful
-                            if i < IDXSEG.shape[0]:
-                                IDXSEG[i, :] = [x1, y1, x2, y2, x3, y3]
+
+                            if col < IDXSEG.shape[1]:
+                                IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
+                            else:
+                                new_values = [x1, y1, x2, y2, x3, y3]
+                                IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
+                                IDXSEG[i, -6:] = new_values
+
+                            col += 6
+
+                            # # Store coordinates if successful
+                            # if i < IDXSEG.shape[0]:
+                            #     IDXSEG[i, :] = [x1, y1, x2, y2, x3, y3]
                         except Exception as e:
                             print(f"Error calculating normal vectors: {str(e)}")
                             continue
@@ -984,8 +1051,8 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
     STRAHLER = np.zeros_like(E) # contains sinous length
     STRAIGHTDIST = np.zeros_like(E) # contains straight length
     IDXSEG = np.zeros((skeleton.shape[0], 6)) # contains coordinates of the normal vector (end and mid points)
-    # IDXBRANCH = np.zeros_like(skeleton, dtype=int) # contains indices of all branch points
-    IDXBRANCH = np.zeros_like(skeleton, dtype=[('row', int), ('col', int)])
+    IDXBRANCH = np.zeros_like(skeleton, dtype=int) # contains indices of all branch points
+    # IDXBRANCH = np.zeros_like(skeleton, dtype=[('row', int), ('col', int)])
     creekorder = np.zeros_like(skeleton, dtype=int)
     creekordersing = np.zeros_like(skeleton, dtype=int)
     skeleton_chopped = skeleton # we keep skeleton intact and remove segments from skeleton_chopped
@@ -1016,7 +1083,8 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
         B_loc = np.argwhere(B) # np.argwhere returns a 2D array of coordinates
         E_loc = np.argwhere(E)
         Dmask = np.zeros_like(skeleton_chopped, dtype=bool)
-        col = 1
+        col = 0
+        print('col = ', col)
         coords = np.argwhere(E)
         y, x = coords[:, 0], coords[:, 1]
         
@@ -1103,10 +1171,17 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
                 # Create normal vectors to each segment and store their coordinates
                 # should it be y[k], x[k] or x[k], y[k]? -SamK
                 x1, y1, x2, y2, x3, y3, _, _ = normal_coord(DD, distanceToEndPt, y[k], x[k], limit)
-                # IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
-                # col += 6
-                IDXSEG[i, :] = [x1, y1, x2, y2, x3, y3] # it seems column number is irrelevant since IDXSEG initialized with 6 columns
+                
+                if col < IDXSEG.shape[1]:
+                    IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
+                else:
+                    new_values = [x1, y1, x2, y2, x3, y3]
+                    IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
+                    IDXSEG[i, -6:] = new_values
 
+                col += 6
+                print('col = ', col)
+                
                 # Prepare to remove the segments order i
                 Dmask[DD < distanceToEndPt] = True
 
@@ -1150,10 +1225,17 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
 
                 # Create normal vectors to each segment and store their coordinates
                 x1, y1, x2, y2, x3, y3, _, _ = normal_coord(DD, distanceToEndPt, x[k], y[k], limit)
-                # IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
-                # col += 6
-                IDXSEG[i, :] = [x1, y1, x2, y2, x3, y3] # it seems column number is irrelevant since IDXSEG initialized with 6 columns
+                
+                if col < IDXSEG.shape[1]:
+                    IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
+                else:
+                    new_values = [x1, y1, x2, y2, x3, y3]
+                    IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
+                    IDXSEG[i, -6:] = new_values
 
+                col += 6
+                print('col = ', col)
+                
                 # Prepare to remove the segments order i
                 Dmask[DD < distanceToEndPt] = True
 
@@ -1187,10 +1269,17 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
                 # Create normal vectors to each segment and store their coordinates
                 # should it be y[k], x[k] or x[k], y[k]? -SamK
                 x1, y1, x2, y2, x3, y3, _, _ = normal_coord(DD, distanceToBranchPt, x[k], y[k], limit)
-                # IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
-                # col += 6
-                IDXSEG[i, :] = [x1, y1, x2, y2, x3, y3] # it seems column number is irrelevant since IDXSEG initialized with 6 columns
+                
+                if col < IDXSEG.shape[1]:
+                    IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
+                else:
+                    new_values = [x1, y1, x2, y2, x3, y3]
+                    IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
+                    IDXSEG[i, -6:] = new_values
 
+                col += 6
+                print('col = ', col)
+                
                 # Prepare to remove the segments order i
                 Dmask[DD < distanceToBranchPt] = True
 
@@ -1229,6 +1318,7 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
 
         # Find the end and branch points of the order i+1 network configuration
         i += 1 # Store order number and move on to the next creek order until skeleton contains only 0
+        col = 0
         B, E, PTS = analyze_skeleton(skeleton_chopped)
         # Update breach points
         E.ravel()[idxbreach] = False
@@ -1267,7 +1357,8 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
         B_loc = np.argwhere(B) # np.argwhere returns a 2D array of coordinates
         E_loc = np.argwhere(E)
         Dmask = np.zeros_like(skeleton_chopped, dtype=bool)
-        col = 1
+        # col = 0
+        # print('col = ', col)
         coords = np.argwhere(E)
         y, x = coords[:, 0], coords[:, 1]
         
@@ -1361,9 +1452,16 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
                 # Create normal vectors to each segment and store their coordinates
                 # should it be y[k2], x[k2] or x[k2], y[k2]? -SamK
                 x1, y1, x2, y2, x3, y3, _, _ = normal_coord(DD, distanceToEndPt, y[k2], x[k2], limit)
-                # IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
-                # col += 6
-                IDXSEG[i, :] = [x1, y1, x2, y2, x3, y3] # it seems column number is irrelevant since IDXSEG initialized with 6 columns
+                
+                if col < IDXSEG.shape[1]:
+                    IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
+                else:
+                    new_values = [x1, y1, x2, y2, x3, y3]
+                    IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
+                    IDXSEG[i, -6:] = new_values
+
+                col += 6
+                print('col = ', col)
 
                 # Prepare to remove the segments order i
                 Dmask[DD < distanceToEndPt] = True
@@ -1408,9 +1506,16 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
 
                 # Create normal vectors to each segment and store their coordinates
                 x1, y1, x2, y2, x3, y3, _, _ = normal_coord(DD, distanceToEndPt, x[k2], y[k2], limit)
-                # IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
-                # col += 6
-                IDXSEG[i, :] = [x1, y1, x2, y2, x3, y3] # it seems column number is irrelevant since IDXSEG initialized with 6 columns
+               
+                if col < IDXSEG.shape[1]:
+                    IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
+                else:
+                    new_values = [x1, y1, x2, y2, x3, y3]
+                    IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
+                    IDXSEG[i, -6:] = new_values
+
+                col += 6
+                print('col = ', col)
 
                 # Prepare to remove the segments order i
                 Dmask[DD < distanceToEndPt] = True
@@ -1445,10 +1550,17 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
                 # Create normal vectors to each segment and store their coordinates
                 # should it be y[k], x[k] or x[k], y[k]? -SamK
                 x1, y1, x2, y2, x3, y3, _, _ = normal_coord(DD, distanceToBranchPt, x[k2], y[k2], limit)
-                # IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
-                # col += 6
-                IDXSEG[i, :] = [x1, y1, x2, y2, x3, y3] # it seems column number is irrelevant since IDXSEG initialized with 6 columns
+                
+                if col < IDXSEG.shape[1]:
+                    IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
+                else:
+                    new_values = [x1, y1, x2, y2, x3, y3]
+                    IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
+                    IDXSEG[i, -6:] = new_values
 
+                col += 6
+                print('col = ', col)
+                
                 # Prepare to remove the segments order i
                 Dmask[DD < distanceToBranchPt] = True
 
@@ -1487,6 +1599,7 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
 
         # Find the end and branch points of the order i+1 network configuration
         # i += 1 # Store order number and move on to the next creek order until skeleton contains only 0
+        # col = 0
         B, E, PTS = analyze_skeleton(skeleton_chopped)
 
         i_check += 1
@@ -1520,7 +1633,8 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
         B_loc = np.argwhere(B) # np.argwhere returns a 2D array of coordinates
         # E_loc = np.argwhere(E)
         Dmask = np.zeros_like(skeleton_chopped, dtype=bool)
-        # col = 1
+        # col = 0
+        # print('col = ', col)
         coords = np.argwhere(B) # different than being based on E in first two while loops -SamK
         y, x = coords[:, 0], coords[:, 1]
 
@@ -1624,9 +1738,16 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
             print('   ptlocy, ptlocx = y[k2], x[k2] = ', (y[k2], x[k2]))
             print('   B_loc = B_loctemp = ', B_loctemp)
             x1, y1, x2, y2, x3, y3, BWrem = normal_coord_test(DD, distanceToEndPt, x[k2], y[k2], limit, skeleton_chopped, B_loctemp)
-            # IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
-            # col += 6
-            IDXSEG[i, :] = [x1, y1, x2, y2, x3, y3] # it seems column number is irrelevant since IDXSEG initialized with 6 columns
+            
+            if col < IDXSEG.shape[1]:
+                IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
+            else:
+                new_values = [x1, y1, x2, y2, x3, y3]
+                IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
+                IDXSEG[i, -6:] = new_values
+
+            col += 6
+            print('col = ', col)
 
             # Prepare to remove the segments order i
             # Dmask[DD < distanceToEndPt] = True
@@ -1675,9 +1796,16 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
             print('   ptlocy, ptlocx = y[k2], x[k2] = ', (y[k2], x[k2]))
             print('   B_loc = B_loctemp = ', B_loctemp)
             x1, y1, x2, y2, x3, y3, BWrem = normal_coord_test(DD, distanceToEndPt, x[k2], y[k2], limit, skeleton_chopped, B_loctemp)
-            # IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
-            # col += 6
-            IDXSEG[i, :] = [x1, y1, x2, y2, x3, y3] # it seems column number is irrelevant since IDXSEG initialized with 6 columns
+            
+            if col < IDXSEG.shape[1]:
+                IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
+            else:
+                new_values = [x1, y1, x2, y2, x3, y3]
+                IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
+                IDXSEG[i, -6:] = new_values
+
+            col += 6
+            print('col = ', col)
 
             # Prepare to remove the segments order i
             # Dmask[DD < distanceToEndPt] = True
@@ -1715,9 +1843,16 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
             print('   ptlocy, ptlocx = y[k2], x[k2] = ', (y[k2], x[k2]))
             print('   B_loc = B_loctemp = ', B_loctemp)
             x1, y1, x2, y2, x3, y3, BWrem = normal_coord_test(DD, distanceToBranchPt, x[k2], y[k2], limit, skeleton_chopped, B_loctemp)
-            # IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
-            # col += 6
-            IDXSEG[i, :] = [x1, y1, x2, y2, x3, y3] # it seems column number is irrelevant since IDXSEG initialized with 6 columns
+            
+            if col < IDXSEG.shape[1]:
+                IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
+            else:
+                new_values = [x1, y1, x2, y2, x3, y3]
+                IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
+                IDXSEG[i, -6:] = new_values
+
+            col += 6
+            print('col = ', col)
 
             # Prepare to remove the segments order i
             # Dmask[DD < distanceToBranchPt] = True
@@ -1762,6 +1897,7 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
 
         # # Find the end and branch points of the order i+1 network configuration
         # i += 1 # Store order number and move on to the next creek order until skeleton contains only 0
+        # col = 0
         skeleton_chopped = bwmorph_clean(skeleton_chopped)
         B, E, PTS = analyze_skeleton(skeleton_chopped)
         B = PTS
@@ -1859,9 +1995,16 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
         #     print('   ptlocy, ptlocx = ptlocy, ptlocx = ', (ptlocy, ptlocx))
         #     print('   B_loc = (row_midpt, col_midpt) = ', (row_midpt, col_midpt))
         #     x1, y1, x2, y2, x3, y3, BWrem = normal_coord_test(DD, sinuouslength, ptlocx, ptlocy, limit, skeleton_chopped, [row_midpt, col_midpt])
-        #     # IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
-        #     # col += 6
-        #     IDXSEG[i, :] = [x1, y1, x2, y2, x3, y3] # it seems column number is irrelevant since IDXSEG initialized with 6 columns
+            # if col < IDXSEG.shape[1]:
+            #     IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
+            # else:
+            #     new_values = [x1, y1, x2, y2, x3, y3]
+            #     IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
+            #     IDXSEG[i, -6:] = new_values
+
+            # col += 6
+            # print('col = ', col)
+            # print('col = ', col)
 
 
         # Initialize temp arrays to store masks and distances
@@ -1920,9 +2063,20 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
                                 DD, sinuouslength, x_first, y_first, 
                                 limit, skeleton_chopped, (y_far, x_far)
                             )
-                            # Store coordinates if successful
-                            if i < IDXSEG.shape[0]:
-                                IDXSEG[i, :] = [x1, y1, x2, y2, x3, y3]
+
+                            if col < IDXSEG.shape[1]:
+                                IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
+                            else:
+                                new_values = [x1, y1, x2, y2, x3, y3]
+                                IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
+                                IDXSEG[i, -6:] = new_values
+
+                            col += 6
+                            print('col = ', col)
+
+                            # # Store coordinates if successful
+                            # if i < IDXSEG.shape[0]:
+                            #     IDXSEG[i, :] = [x1, y1, x2, y2, x3, y3]
                         except Exception as e:
                             print(f"Error calculating normal vectors: {str(e)}")
                             continue
