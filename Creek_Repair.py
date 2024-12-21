@@ -346,14 +346,14 @@ def figure_reconnected_creek_mask(creek_mask):
     plt.figure()
     plt.imshow(creek_mask, cmap='gray')
     plt.title('Reconnected creek area mask')
-    plt.axis('off')
+    # plt.axis('off')
     plt.show()
 
 def figure_repaired_creek_mask(creek_mask):
     plt.figure()
     plt.imshow(creek_mask, cmap='gray')
     plt.title('Repaired creek area mask')
-    plt.axis('off')
+    # plt.axis('off')
     plt.show()
 
 def save_creek_mask_h5(creek_mask, filename):
