@@ -194,9 +194,10 @@ def process_creek_morphometry_diagnostic(ANGLEORDER, ID, SEGMENTS, SINUOUSLENGTH
     print("AREA rows:", AREA[:8] if AREA is not None else "None")
     
     # Move content from rows 1,2,3 to rows 0,1,2
-    WIDTH = WIDTH[1:]  # Remove first row
-    DEPTH = DEPTH[1:]  # Remove first row
-    AREA = AREA[1:]   # Remove first row
+    # Delete the first row
+    WIDTH = np.delete(WIDTH, 0, axis=0)
+    DEPTH = np.delete(DEPTH, 0, axis=0)
+    AREA = np.delete(AREA, 0, axis=0)
     
     print("\nAfter shifting:")
     print("WIDTH rows:", WIDTH[:8] if WIDTH is not None else "None")
