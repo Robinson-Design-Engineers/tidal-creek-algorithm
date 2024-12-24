@@ -139,7 +139,7 @@ def process_creek_ordering(ordermax, Z, skeleton, outletdetection, nbbreaches):
     B, E, PTS = analyze_skeleton(skeleton)
     all_pts = PTS
     STRAHLER = np.zeros_like(E, dtype=float) # contains sinous length
-    STRAIGHTDIST = np.zeros_like(E) # contains straight length
+    STRAIGHTDIST = np.zeros_like(E, dtype=float) # contains straight length
     IDXSEG = np.zeros((skeleton.shape[0], 6)) # contains coordinates of the normal vector (end and mid points)
     IDXBRANCH = np.zeros_like(skeleton, dtype=int) # contains indices of all branch points
     # IDXBRANCH = np.zeros_like(skeleton, dtype=[('row', int), ('col', int)])
@@ -1049,7 +1049,7 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
     # Initialize variables
     B, E, PTS = analyze_skeleton(skeleton)
     STRAHLER = np.zeros_like(E, dtype=float)
-    STRAIGHTDIST = np.zeros_like(E) # contains straight length
+    STRAIGHTDIST = np.zeros_like(E, dtype=float) # contains straight length
     IDXSEG = np.zeros((skeleton.shape[0], 6)) # contains coordinates of the normal vector (end and mid points)
     IDXBRANCH = np.zeros_like(skeleton, dtype=int) # contains indices of all branch points
     # IDXBRANCH = np.zeros_like(skeleton, dtype=[('row', int), ('col', int)])

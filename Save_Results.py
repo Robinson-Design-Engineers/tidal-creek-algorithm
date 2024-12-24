@@ -78,11 +78,11 @@ def process_creek_morphometry(ANGLEORDER, ID, SEGMENTS, SINUOUSLENGTH, SINUOSITY
     ]
     
     # Create DataFrame for summary table
-    summary_df = pd.DataFrame(summary_data, columns=summary_columns)
+    SUMMARY_df = pd.DataFrame(summary_data, columns=summary_columns)
     
     # Create detailed measurement tables
     with np.errstate(invalid='ignore'):
-        sinuous_length = np.column_stack([
+        SINUOUSLENGTH = np.column_stack([
             ID.reshape(-1, 1),
             SEGMENTS.reshape(-1, 1),
             np.nansum(SINUOUSLENGTH, axis=1, keepdims=True),
@@ -90,7 +90,7 @@ def process_creek_morphometry(ANGLEORDER, ID, SEGMENTS, SINUOUSLENGTH, SINUOSITY
             SINUOUSLENGTH
         ])
         
-        straight_dist = np.column_stack([
+        STRAIGHTDIST = np.column_stack([
             ID.reshape(-1, 1),
             SEGMENTS.reshape(-1, 1),
             np.nansum(STRAIGHTDIST, axis=1, keepdims=True),
@@ -98,29 +98,29 @@ def process_creek_morphometry(ANGLEORDER, ID, SEGMENTS, SINUOUSLENGTH, SINUOSITY
             STRAIGHTDIST
         ])
         
-        sinuosity = np.column_stack([
+        SINUOSITY = np.column_stack([
             ID.reshape(-1, 1),
             SEGMENTS.reshape(-1, 1),
             np.nanmean(SINUOSITY, axis=1, keepdims=True),
             SINUOSITY
         ])
         
-        depth = np.column_stack([DEPTH, np.nanmean(DEPTH, axis=1, keepdims=True)])
-        width = np.column_stack([WIDTH, np.nanmean(WIDTH, axis=1, keepdims=True)])
-        area = np.column_stack([AREA, np.nanmean(AREA, axis=1, keepdims=True)])
+        DEPTH = np.column_stack([DEPTH, np.nanmean(DEPTH, axis=1, keepdims=True)])
+        WIDTH = np.column_stack([WIDTH, np.nanmean(WIDTH, axis=1, keepdims=True)])
+        AREA = np.column_stack([AREA, np.nanmean(AREA, axis=1, keepdims=True)])
     
     # Create and display summary table
     plt.figure(figsize=(13, 2))
     plt.axis('tight')
     plt.axis('off')
-    table = plt.table(cellText=summary_df.values,
-                     colLabels=summary_df.columns,
+    table = plt.table(cellText=SUMMARY_df.values,
+                     colLabels=SUMMARY_df.columns,
                      cellLoc='center',
                      loc='center')
     
     # Save summary table to Excel
     output_path = f'Outputs/{name}_CreekMorphometry.xlsx'
-    summary_df.to_excel(output_path, index=False)
+    SUMMARY_df.to_excel(output_path, index=False)
     
     # Create and display thresholds table
     thresh_data = np.array([
@@ -133,23 +133,23 @@ def process_creek_morphometry(ANGLEORDER, ID, SEGMENTS, SINUOUSLENGTH, SINUOSITY
                      'High elevation threshold HZth']
     thresh_index = ['Value', 'Area']
     
-    thresh_df = pd.DataFrame(thresh_data, 
+    THRESHOLD_df = pd.DataFrame(thresh_data, 
                            columns=thresh_columns,
                            index=thresh_index)
     
     plt.figure(figsize=(8, 1.5))
     plt.axis('tight')
     plt.axis('off')
-    thresh_table = plt.table(cellText=thresh_df.values,
-                           colLabels=thresh_df.columns,
-                           rowLabels=thresh_df.index,
+    thresh_table = plt.table(cellText=THRESHOLD_df.values,
+                           colLabels=THRESHOLD_df.columns,
+                           rowLabels=THRESHOLD_df.index,
                            cellLoc='center',
                            loc='center')
     
     plt.show()
     
-    return (summary_df, thresh_df, sinuous_length, straight_dist, 
-            sinuosity, depth, width, area)
+    return (SUMMARY_df, THRESHOLD_df, SINUOUSLENGTH, STRAIGHTDIST, 
+            SINUOSITY, DEPTH, WIDTH, AREA)
 
 def process_creek_morphometry_diagnostic(ANGLEORDER, ID, SEGMENTS, SINUOUSLENGTH, SINUOSITY, WIDTH, 
                             DEPTH, AREA, STRAIGHTDIST, name, Cth, LZth, HZth, 
@@ -160,7 +160,7 @@ def process_creek_morphometry_diagnostic(ANGLEORDER, ID, SEGMENTS, SINUOUSLENGTH
     print(f"SEGMENTS shape before reshape: {np.asarray(SEGMENTS).shape}")
     
     # Convert inputs to numpy arrays if they aren't already
-    ID = np.asarray(ID).reshape(-1)
+    ID = np.asarray(ID).reshape(-1)[::-1]
     SEGMENTS = np.asarray(SEGMENTS).reshape(-1)
     
     print("\nAfter reshape:")
@@ -263,11 +263,11 @@ def process_creek_morphometry_diagnostic(ANGLEORDER, ID, SEGMENTS, SINUOUSLENGTH
     ]
     
     # Create DataFrame for summary table
-    summary_df = pd.DataFrame(summary_data, columns=summary_columns)
+    SUMMARY_df = pd.DataFrame(summary_data, columns=summary_columns)
     
     # Create detailed measurement tables
     with np.errstate(invalid='ignore'):
-        sinuous_length = np.column_stack([
+        SINUOUSLENGTH = np.column_stack([
             ID.reshape(-1, 1),
             SEGMENTS.reshape(-1, 1),
             np.nansum(SINUOUSLENGTH, axis=1, keepdims=True),
@@ -275,7 +275,7 @@ def process_creek_morphometry_diagnostic(ANGLEORDER, ID, SEGMENTS, SINUOUSLENGTH
             SINUOUSLENGTH
         ])
         
-        straight_dist = np.column_stack([
+        STRAIGHTDIST = np.column_stack([
             ID.reshape(-1, 1),
             SEGMENTS.reshape(-1, 1),
             np.nansum(STRAIGHTDIST, axis=1, keepdims=True),
@@ -283,29 +283,29 @@ def process_creek_morphometry_diagnostic(ANGLEORDER, ID, SEGMENTS, SINUOUSLENGTH
             STRAIGHTDIST
         ])
         
-        sinuosity = np.column_stack([
+        SINUOSITY = np.column_stack([
             ID.reshape(-1, 1),
             SEGMENTS.reshape(-1, 1),
             np.nanmean(SINUOSITY, axis=1, keepdims=True),
             SINUOSITY
         ])
         
-        depth = np.column_stack([DEPTH, np.nanmean(DEPTH, axis=1, keepdims=True)])
-        width = np.column_stack([WIDTH, np.nanmean(WIDTH, axis=1, keepdims=True)])
-        area = np.column_stack([AREA, np.nanmean(AREA, axis=1, keepdims=True)])
+        DEPTH = np.column_stack([DEPTH, np.nanmean(DEPTH, axis=1, keepdims=True)])
+        WIDTH = np.column_stack([WIDTH, np.nanmean(WIDTH, axis=1, keepdims=True)])
+        AREA = np.column_stack([AREA, np.nanmean(AREA, axis=1, keepdims=True)])
     
     # Create and display summary table
     plt.figure(figsize=(13, 2))
     plt.axis('tight')
     plt.axis('off')
-    table = plt.table(cellText=summary_df.values,
-                     colLabels=summary_df.columns,
+    table = plt.table(cellText=SUMMARY_df.values,
+                     colLabels=SUMMARY_df.columns,
                      cellLoc='center',
                      loc='center')
     
     # Save summary table to Excel
     output_path = f'Outputs/{name}_CreekMorphometry.xlsx'
-    summary_df.to_excel(output_path, index=False)
+    SUMMARY_df.to_excel(output_path, index=False)
     
     # Create and display thresholds table
     thresh_data = np.array([
@@ -318,20 +318,20 @@ def process_creek_morphometry_diagnostic(ANGLEORDER, ID, SEGMENTS, SINUOUSLENGTH
                      'High elevation threshold HZth']
     thresh_index = ['Value', 'Area']
     
-    thresh_df = pd.DataFrame(thresh_data, 
+    THRESHOLD_df = pd.DataFrame(thresh_data, 
                            columns=thresh_columns,
                            index=thresh_index)
     
     plt.figure(figsize=(8, 1.5))
     plt.axis('tight')
     plt.axis('off')
-    thresh_table = plt.table(cellText=thresh_df.values,
-                           colLabels=thresh_df.columns,
-                           rowLabels=thresh_df.index,
+    thresh_table = plt.table(cellText=THRESHOLD_df.values,
+                           colLabels=THRESHOLD_df.columns,
+                           rowLabels=THRESHOLD_df.index,
                            cellLoc='center',
                            loc='center')
     
     plt.show()
     
-    return (summary_df, thresh_df, sinuous_length, straight_dist, 
-            sinuosity, depth, width, area)
+    return (SUMMARY_df, THRESHOLD_df, SINUOUSLENGTH, STRAIGHTDIST, 
+            SINUOSITY, DEPTH, WIDTH, AREA)
