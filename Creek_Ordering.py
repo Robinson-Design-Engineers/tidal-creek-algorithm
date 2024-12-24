@@ -138,7 +138,7 @@ def process_creek_ordering(ordermax, Z, skeleton, outletdetection, nbbreaches):
     # Initialize variables
     B, E, PTS = analyze_skeleton(skeleton)
     all_pts = PTS
-    STRAHLER = np.zeros_like(E) # contains sinous length
+    STRAHLER = np.zeros_like(E, dtype=float) # contains sinous length
     STRAIGHTDIST = np.zeros_like(E) # contains straight length
     IDXSEG = np.zeros((skeleton.shape[0], 6)) # contains coordinates of the normal vector (end and mid points)
     IDXBRANCH = np.zeros_like(skeleton, dtype=int) # contains indices of all branch points
@@ -186,7 +186,7 @@ def process_creek_ordering(ordermax, Z, skeleton, outletdetection, nbbreaches):
             finite_branch_distances = branch_distances[np.isfinite(branch_distances)]
             # have a check to make sure there are actual values
             try:
-                distanceToBranchPt = np.min(finite_branch_distances)
+                distanceToBranchPt = np.min(finite_branch_distances).astype(float)
             except ValueError:
                 distanceToBranchPt = np.inf  # or another appropriate value
 
@@ -195,7 +195,7 @@ def process_creek_ordering(ordermax, Z, skeleton, outletdetection, nbbreaches):
             finite_end_distances = end_distances[np.isfinite(end_distances)]
             # have a check to make sure there are actual values
             try:
-                distanceToEndPt = np.min(finite_end_distances)
+                distanceToEndPt = np.min(finite_end_distances).astype(float)
             except ValueError:
                 distanceToEndPt = np.inf  # or another appropriate value
             
@@ -442,7 +442,7 @@ def process_creek_ordering(ordermax, Z, skeleton, outletdetection, nbbreaches):
             finite_branch_distances = branch_distances[np.isfinite(branch_distances)]
             # have a check to make sure there are actual values
             try:
-                distanceToBranchPt = np.min(finite_branch_distances)
+                distanceToBranchPt = np.min(finite_branch_distances).astype(float)
             except ValueError:
                 distanceToBranchPt = np.inf  # or another appropriate value
 
@@ -451,7 +451,7 @@ def process_creek_ordering(ordermax, Z, skeleton, outletdetection, nbbreaches):
             finite_end_distances = end_distances[np.isfinite(end_distances)]
             # have a check to make sure there are actual values
             try:
-                distanceToEndPt = np.min(finite_end_distances)
+                distanceToEndPt = np.min(finite_end_distances).astype(float)
             except ValueError:
                 distanceToEndPt = np.inf  # or another appropriate value
             
@@ -700,7 +700,7 @@ def process_creek_ordering(ordermax, Z, skeleton, outletdetection, nbbreaches):
         finite_branch_distances = branch_distances[np.isfinite(branch_distances)]
         # have a check to make sure there are actual values
         try:
-            distanceToBranchPt = np.min(finite_branch_distances)
+            distanceToBranchPt = np.min(finite_branch_distances).astype(float)
         except ValueError:
             distanceToBranchPt = np.inf  # or another appropriate value
 
@@ -709,7 +709,7 @@ def process_creek_ordering(ordermax, Z, skeleton, outletdetection, nbbreaches):
         finite_end_distances = end_distances[np.isfinite(end_distances)]
         # have a check to make sure there are actual values
         try:
-            distanceToEndPt = np.min(finite_end_distances)
+            distanceToEndPt = np.min(finite_end_distances).astype(float)
         except ValueError:
             distanceToEndPt = np.inf  # or another appropriate value
             
@@ -959,13 +959,13 @@ def process_creek_ordering(ordermax, Z, skeleton, outletdetection, nbbreaches):
             loopmask[idxlist] = True
 
             # Store total pixels in component 
-            sinuouslength = np.sum(loopmask)
+            sinuouslength = np.sum(loopmask, dtype=float)
             
             # Safely expand STRAHLER array if needed
             if i >= STRAHLER.shape[0] or k >= STRAHLER.shape[1]:
                 new_rows = max(i + 1, STRAHLER.shape[0])
                 new_cols = max(k + 1, STRAHLER.shape[1])
-                STRAHLER_temp = np.zeros((new_rows, new_cols))
+                STRAHLER_temp = np.zeros((new_rows, new_cols), dtype=float)  # Explicitly set dtype
                 STRAHLER_temp[:STRAHLER.shape[0], :STRAHLER.shape[1]] = STRAHLER
                 STRAHLER = STRAHLER_temp
                 
@@ -1032,7 +1032,7 @@ def process_creek_ordering(ordermax, Z, skeleton, outletdetection, nbbreaches):
     IDXSEG = np.array(IDXSEG)
     IDXBRANCH = np.array(IDXBRANCH)
     
-    return STRAHLER, STRAIGHTDIST, IDXSEG, IDXBRANCH, idxbreach, xbreach, ybreach, skeleton_breached, creekorder, creekordersing, all_pts, list(range(1, i)) # I think this ID return is correct? -SamK
+    return STRAHLER, STRAIGHTDIST, IDXSEG, IDXBRANCH, idxbreach, xbreach, ybreach, skeleton_breached, creekorder, creekordersing, all_pts, ID
 
 
 def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nbbreaches): # for debugging
@@ -1048,7 +1048,7 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
 
     # Initialize variables
     B, E, PTS = analyze_skeleton(skeleton)
-    STRAHLER = np.zeros_like(E) # contains sinous length
+    STRAHLER = np.zeros_like(E, dtype=float)
     STRAIGHTDIST = np.zeros_like(E) # contains straight length
     IDXSEG = np.zeros((skeleton.shape[0], 6)) # contains coordinates of the normal vector (end and mid points)
     IDXBRANCH = np.zeros_like(skeleton, dtype=int) # contains indices of all branch points
@@ -1057,6 +1057,7 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
     creekordersing = np.zeros_like(skeleton, dtype=int)
     skeleton_chopped = skeleton # we keep skeleton intact and remove segments from skeleton_chopped
     ID = []
+    print('initial ID = ', ID)
     i = 1
     limit = 3
 
@@ -1103,7 +1104,7 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
             finite_branch_distances = branch_distances[np.isfinite(branch_distances)]
             # have a check to make sure there are actual values
             try:
-                distanceToBranchPt = np.min(finite_branch_distances)
+                distanceToBranchPt = np.min(finite_branch_distances).astype(float)
             except ValueError:
                 distanceToBranchPt = np.inf  # or another appropriate value
 
@@ -1112,7 +1113,7 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
             finite_end_distances = end_distances[np.isfinite(end_distances)]
             # have a check to make sure there are actual values
             try:
-                distanceToEndPt = np.min(finite_end_distances)
+                distanceToEndPt = np.min(finite_end_distances).astype(float)
             except ValueError:
                 distanceToEndPt = np.inf  # or another appropriate value
             
@@ -1315,6 +1316,7 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
         # Redo skeleton
         skeleton_chopped = morphology.skeletonize(skeleton_chopped)
         ID = np.append(ID, i) # update order tracking
+        print('redo skeleton ID = ', ID)
 
         # Find the end and branch points of the order i+1 network configuration
         i += 1 # Store order number and move on to the next creek order until skeleton contains only 0
@@ -1331,9 +1333,11 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
 
     if i == ordermax:
         ID = np.append(ID, i)
+        print('i == ordermax ID = ', ID)
     else:
         i = ordermax
         ID = np.arange(1, ordermax + 1)  # Create array from 1 to ordermax
+        print('i != ordermax ID = ', ID)
 
     # Segment assignation has occured until no more end points are detected. 
     # We do a second one that also detects the outlets.
@@ -1384,7 +1388,7 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
             finite_branch_distances = branch_distances[np.isfinite(branch_distances)]
             # have a check to make sure there are actual values
             try:
-                distanceToBranchPt = np.min(finite_branch_distances)
+                distanceToBranchPt = np.min(finite_branch_distances).astype(float)
             except ValueError:
                 distanceToBranchPt = np.inf  # or another appropriate value
 
@@ -1393,7 +1397,7 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
             finite_end_distances = end_distances[np.isfinite(end_distances)]
             # have a check to make sure there are actual values
             try:
-                distanceToEndPt = np.min(finite_end_distances)
+                distanceToEndPt = np.min(finite_end_distances).astype(float)
             except ValueError:
                 distanceToEndPt = np.inf  # or another appropriate value
             
@@ -1668,7 +1672,7 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
         finite_branch_distances = branch_distances[np.isfinite(branch_distances)]
         # have a check to make sure there are actual values
         try:
-            distanceToBranchPt = np.min(finite_branch_distances)
+            distanceToBranchPt = np.min(finite_branch_distances).astype(float)
         except ValueError:
             distanceToBranchPt = np.inf  # or another appropriate value
 
@@ -1677,7 +1681,7 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
         finite_end_distances = end_distances[np.isfinite(end_distances)]
         # have a check to make sure there are actual values
         try:
-            distanceToEndPt = np.min(finite_end_distances)
+            distanceToEndPt = np.min(finite_end_distances).astype(float)
         except ValueError:
             distanceToEndPt = np.inf  # or another appropriate value
             
@@ -2027,13 +2031,13 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
             print('idxlist = ', idxlist)
 
             # Store total pixels in component 
-            sinuouslength = np.sum(loopmask)
+            sinuouslength = np.sum(loopmask, dtype=float)
             
             # Safely expand STRAHLER array if needed
             if i >= STRAHLER.shape[0] or k >= STRAHLER.shape[1]:
                 new_rows = max(i + 1, STRAHLER.shape[0])
                 new_cols = max(k + 1, STRAHLER.shape[1])
-                STRAHLER_temp = np.zeros((new_rows, new_cols))
+                STRAHLER_temp = np.zeros((new_rows, new_cols), dtype=float)  # Explicitly set dtype
                 STRAHLER_temp[:STRAHLER.shape[0], :STRAHLER.shape[1]] = STRAHLER
                 STRAHLER = STRAHLER_temp
                 
@@ -2101,7 +2105,7 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
     IDXSEG = np.array(IDXSEG)
     IDXBRANCH = np.array(IDXBRANCH)
     
-    return STRAHLER, STRAIGHTDIST, IDXSEG, IDXBRANCH, idxbreach, xbreach, ybreach, skeleton_breached, creekorder, creekordersing, PTS, list(range(1, i)) # I think this ID return is correct? -SamK
+    return STRAHLER, STRAIGHTDIST, IDXSEG, IDXBRANCH, idxbreach, xbreach, ybreach, skeleton_breached, creekorder, creekordersing, PTS, ID
 
 def process_outlet_detection(Z, skeleton, nbbreaches):
     # uses slightly different process than MATLAB, but that's okay because the important output is the breach location -SamK

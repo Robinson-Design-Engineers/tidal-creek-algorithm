@@ -87,7 +87,7 @@ def process_xsects(creekmask, creek, IDXSEG, ordermax, figview=False):
     inverse_order = np.arange(ordermax, 0, -1)
     
     # Process each segment
-    for order in range(1,ordermax+1):
+    for order in range(0,ordermax):
         iter = 0
         for seg in range(0, IDXSEG.shape[1], 6):
             if IDXSEG[order, seg] == 0:  # Skip if no segment
@@ -542,7 +542,7 @@ def process_xsects_diagnostic(creekmask, creek, skeleton, IDXSEG, ordermax, figv
     inverse_order = np.arange(ordermax, 0, -1)
     
     # Process each segment
-    for order in range(1,ordermax+1):
+    for order in range(0,ordermax):
         print('order = ', order)
         iter = 0
         print('next is "for seg in range(0, IDXSEG.shape[1], 6):", where IDXSEG.shape[1] = ', IDXSEG.shape[1])
