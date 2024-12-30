@@ -247,7 +247,11 @@ class CreekNetworkAnalyzer:
         y_edges = np.arange(masked_orders.shape[0] + 1)
         X_edges, Y_edges = np.meshgrid(x_edges, y_edges)
         
-        im = self.ax1.pcolormesh(X_edges, Y_edges, masked_orders,
+        # im = self.ax1.pcolormesh(X_edges, Y_edges, masked_orders,
+        #                         cmap=discrete_cmap, 
+        #                         vmin=1, vmax=7,
+        #                         shading='flat')
+        im = self.ax1.pcolormesh(Y_edges, X_edges, masked_orders,
                                 cmap=discrete_cmap, 
                                 vmin=1, vmax=7,
                                 shading='flat')
@@ -275,11 +279,13 @@ class CreekNetworkAnalyzer:
         
         # Plot dilated skeleton in white on black background
         dilated_skeleton = dilation(self.skeleton, disk(1))
+        dilated_skeleton = np.transpose(dilated_skeleton)
         self.ax2.imshow(dilated_skeleton, cmap='gray')
         
         # Plot branch points
         y_pts, x_pts = np.where(self.pts)
-        self.ax2.plot(x_pts, y_pts, 'r+', alpha=0.7, markersize=10)
+        # self.ax2.plot(x_pts, y_pts, 'r+', alpha=0.7, markersize=10)
+        self.ax2.plot(y_pts, x_pts, 'r+', alpha=0.7, markersize=10)
         
         # Restore previous zoom if it exists
         if xlim is not None and ylim is not None:
@@ -293,7 +299,8 @@ class CreekNetworkAnalyzer:
         """Handle click events on the skeleton plot and snap to nearest branch/endpoint"""
         if event.inaxes == self.ax2 and self.selection_mode:
             # Get clicked coordinates
-            clicked_x, clicked_y = event.xdata, event.ydata
+            clicked_y, clicked_x = event.xdata, event.ydata
+            # clicked_x, clicked_y = event.xdata, event.ydata
             
             # Find all branch/endpoint coordinates
             y_pts, x_pts = np.where(self.pts)
@@ -451,7 +458,13 @@ class CreekNetworkAnalyzer:
             Dmax = np.nanmin(D)
             
             if not np.isinf(Dmax):
-                self.STRAHLER[order, colind] = Dmax
+                # make sure enough columns:
+                if colind < self.STRAHLER.shape[1]:
+                    self.STRAHLER[order, colind] = Dmax
+                else:
+                    new_value = [Dmax]
+                    self.STRAHLER = np.concatenate((self.STRAHLER, np.zeros(self.STRAHLER.shape[0], 1)), axis=1)
+                    self.STRAHLER[order, colind] = new_value
                 
                 # Calculate straight-line distance
                 skeletoneucl = np.zeros_like(self.skeleton)
@@ -459,8 +472,21 @@ class CreekNetworkAnalyzer:
                 euclD = ndimage.distance_transform_edt(~skeletoneucl)
                 disttopt = euclD[yind2, xind2]
                 
-                self.STRAIGHTDIST[order, colind] = disttopt
-                self.IDXBRANCH[order, colind] = corridx2
+                # make sure enough columns:
+                if colind < self.STRAIGHTDIST.shape[1]:
+                    self.STRAIGHTDIST[order, colind] = disttopt
+                else:
+                    new_value = [disttopt]
+                    self.STRAIGHTDIST = np.concatenate((self.STRAIGHTDIST, np.zeros(self.STRAIGHTDIST.shape[0], 1)), axis=1)
+                    self.STRAIGHTDIST[order, colind] = new_value
+
+                # make sure enough columns:
+                if colind < self.IDXBRANCH.shape[1]:
+                    self.IDXBRANCH[order, colind] = corridx2
+                else:
+                    new_value = [corridx2]
+                    self.IDXBRANCH = np.concatenate((self.IDXBRANCH, np.zeros(self.IDXBRANCH.shape[0], 1)), axis=1)
+                    self.IDXBRANCH[order, colind] = new_value
                 
                 # Create mask for points between selected coordinates
                 D[np.isnan(D)] = np.inf
@@ -529,18 +555,14 @@ class CreekNetworkAnalyzer:
                 x3, y3 = x2new, y2new
                 x1, y1 = xm, ym
 
-                # Find first empty row in IDXSEG
-                empty_rows = np.where(~self.IDXSEG.any(axis=1))[0]
-                if len(empty_rows) > 0:
-                    row_idx = empty_rows[0]
+                # Store coordinates
+                # make sure enough columns:
+                if colind*6 < self.IDXSEG.shape[1]:
+                    self.IDXSEG[order, colind*6:colind*6+6] = [x1, y1, x2, y2, x3, y3]
                 else:
-                    # No empty rows, need to expand array
-                    current_rows = self.IDXSEG.shape[0]
-                    self.IDXSEG = np.vstack([self.IDXSEG, np.zeros((1, 6))])
-                    row_idx = current_rows
-
-                # Store the coordinates
-                self.IDXSEG[row_idx, :] = [y1, x1, y2, x2, y3, x3]
+                    new_values = [x1, y1, x2, y2, x3, y3]
+                    self.IDXSEG = np.concatenate((self.IDXSEG, np.zeros((self.IDXSEG.shape[0], 6))), axis=1)
+                    self.IDXSEG[order, -6:] = new_values
                 
                 # Update creek order visualization
                 creek_order_mask = skeletonize(Dmask)

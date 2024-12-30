@@ -68,13 +68,16 @@ def figure_creek_skeleton(skeleton):
 
     # Main visualization
     plt.figure(figsize=(8, 8))
+    skeletonpic2 = np.transpose(skeletonpic2)
     plt.imshow(skeletonpic2, cmap='gray', origin='upper', label='skeleton')
 
     # Plot branch points and endpoints
     y_branch, x_branch = np.where(B)
     y_end, x_end = np.where(E)
-    plt.plot(x_branch, y_branch, 'r+', markersize=10, label='branch points')  # Branch points in red
-    plt.plot(x_end, y_end, 'c+', markersize=10, label='endpoints')  # Endpoints in cyan
+    # plt.plot(x_branch, y_branch, 'r+', markersize=10, label='branch points')  # Branch points in red
+    # plt.plot(x_end, y_end, 'c+', markersize=10, label='endpoints')  # Endpoints in cyan
+    plt.plot(y_branch, x_branch, 'r+', markersize=10, label='branch points')  # Branch points in red
+    plt.plot(y_end, x_end, 'c+', markersize=10, label='endpoints')  # Endpoints in cyan
 
     plt.title('Skeleton with Branchpoints and Endpoints')
     # plt.gca().invert_yaxis()  # Invert y-axis to match MATLAB orientation
@@ -108,14 +111,18 @@ def figure_creek_skeleton_diagnostic(skeleton, x_poi, y_poi):
 
     # Main visualization
     plt.figure(figsize=(8, 8))
+    skeletonpic2 = np.transpose(skeletonpic2)
     plt.imshow(skeletonpic2, cmap='gray', origin='upper', label='skeleton')
 
     # Plot branch points and endpoints
     y_branch, x_branch = np.where(B)
     y_end, x_end = np.where(E)
-    plt.plot(x_branch, y_branch, 'r+', alpha = 0.7, markersize=10, label='branchpoints')  # Branch points in red
-    plt.plot(x_end, y_end, 'c+', alpha = 0.7, markersize=10, label='endpoints')  # Endpoints in cyan
-    plt.plot(x_poi, y_poi, 'o', markersize=10, markeredgecolor='r', markerfacecolor='none', label='point of interest')
+    # plt.plot(x_branch, y_branch, 'r+', alpha = 0.7, markersize=10, label='branchpoints')  # Branch points in red
+    # plt.plot(x_end, y_end, 'c+', alpha = 0.7, markersize=10, label='endpoints')  # Endpoints in cyan
+    # plt.plot(x_poi, y_poi, 'o', markersize=10, markeredgecolor='r', markerfacecolor='none', label='point of interest')
+    plt.plot(y_branch, x_branch, 'r+', alpha = 0.7, markersize=10, label='branchpoints')  # Branch points in red
+    plt.plot(y_end, x_end, 'c+', alpha = 0.7, markersize=10, label='endpoints')  # Endpoints in cyan
+    plt.plot(y_poi, x_poi, 'o', markersize=10, markeredgecolor='r', markerfacecolor='none', label='point of interest')
 
     plt.title('Skeleton with Branchpoints and Endpoints')
     # plt.gca().invert_yaxis()  # Invert y-axis to match MATLAB orientation

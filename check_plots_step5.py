@@ -49,7 +49,12 @@ def plot_creek_orders(skeleton, creekorder, X=None, Y=None, colors=None, figsize
     ax.set_aspect('equal')
     
     # Plot the data using pcolormesh with explicit shading parameter
-    im = ax.pcolormesh(X, Y, masked_orders, 
+    # im = ax.pcolormesh(X, Y, masked_orders, 
+    #                   cmap=discrete_cmap, 
+    #                   vmin=1, 
+    #                   vmax=len(colors) + 1,
+    #                   shading='flat')
+    im = ax.pcolormesh(Y, X, masked_orders, 
                       cmap=discrete_cmap, 
                       vmin=1, 
                       vmax=len(colors) + 1,
@@ -154,7 +159,12 @@ def plot_creek_orders_big(skeleton, creekorder, ordermax, X, Y, colors, figsize,
     # Plot the data using pcolormesh with explicit shading parameter
     np.savetxt("DEBUG/ipynb_X.csv", X, delimiter=",", fmt="%.2f")
     np.savetxt("DEBUG/ipynb_Y.csv", Y, delimiter=",", fmt="%.2f")
-    im = ax.pcolormesh(X, Y, masked_orders, 
+    # im = ax.pcolormesh(X, Y, masked_orders, 
+    #                   cmap=discrete_cmap, 
+    #                   vmin=1, 
+    #                   vmax=len(colors) + 1,
+    #                   shading='flat')
+    im = ax.pcolormesh(Y, X, masked_orders, 
                       cmap=discrete_cmap, 
                       vmin=1, 
                       vmax=len(colors) + 1,

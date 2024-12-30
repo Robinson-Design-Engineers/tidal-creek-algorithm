@@ -344,6 +344,7 @@ def process_creek_mask(creek_mask, reconnect_flag, noise_threshold, reconnection
 
 def figure_reconnected_creek_mask(creek_mask):
     plt.figure()
+    creek_mask = np.transpose(creek_mask)
     plt.imshow(creek_mask, cmap='gray')
     plt.title('Reconnected creek area mask')
     # plt.axis('off')
@@ -351,6 +352,7 @@ def figure_reconnected_creek_mask(creek_mask):
 
 def figure_repaired_creek_mask(creek_mask):
     plt.figure()
+    creek_mask = np.transpose(creek_mask)
     plt.imshow(creek_mask, cmap='gray')
     plt.title('Repaired creek area mask')
     # plt.axis('off')

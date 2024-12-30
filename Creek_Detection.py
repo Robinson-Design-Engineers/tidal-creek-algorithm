@@ -5,6 +5,7 @@ matplotlib.use('TkAgg')  # Use TkAgg backend for displaying plots
 import matplotlib.pyplot as plt
 import json
 from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.colors import ListedColormap
 from matplotlib.patches import Polygon
 from matplotlib.collections import PatchCollection
 from matplotlib.cm import ScalarMappable
@@ -49,6 +50,7 @@ Y = variables["Y"]
 X2 = variables["X2"]
 Y2 = variables["Y2"]
 Z2 = variables["Z2"]
+# Z2 = np.transpose(Z2) # trying
 LZtharea = variables["LZtharea"]
 LZth = variables["LZth"]
 HZtharea = variables["HZtharea"]
@@ -242,22 +244,40 @@ def figure_creek_detection(X, Y, creek, X2, Y2, Z2, CumArea, binrange, CumAreas,
     fig, ax = plt.subplots(figsize=(12, 10))
 
     # Main plot
+    # # Plot the 2D plane (equivalent of pcolor and shading interp in MATLAB)
+    # p = ax.pcolormesh(X2, Y2, Z2, cmap=cm, shading='gouraud')  # 'shading'='gouraud' for interpolation
+    # Add a colorbar and set its label
+    # cbar = plt.colorbar(p, ax=ax, pad=0.03)
+    # # cbar.set_label('Elevation (ft)', fontsize=14) # Anna made it ft not m?
+    # cbar.set_label('Elevation (m)', fontsize=14)
+    # # Plot the surface (creek), equivalent to MATLAB's surf command
+    # ax.contour(X2, Y2, creek, colors='black', linewidths=0.5, alpha=0.5)
+    # # Mesh with black gridlines
+    # mask = ~np.isnan(creek)
+    # ax.pcolormesh(X, Y, mask, cmap='binary', alpha=0.3, edgecolors='none', linewidths=0.5)
+
+    # Flip the X and Y arrays
+    X_flipped = Y
+    Y_flipped = X
+    X2_flipped = Y2  # Swap X and Y values
+    Y2_flipped = X2
     # Plot the 2D plane (equivalent of pcolor and shading interp in MATLAB)
-    p = ax.pcolormesh(X2, Y2, Z2, cmap=cm, shading='gouraud')  # 'shading'='gouraud' for interpolation
+    p = ax.pcolormesh(X2_flipped, Y2_flipped, Z2, cmap=cm, shading='gouraud') # 'shading'='gouraud' for interpolation
     # Add a colorbar and set its label
     cbar = plt.colorbar(p, ax=ax, pad=0.03)
     # cbar.set_label('Elevation (ft)', fontsize=14) # Anna made it ft not m?
     cbar.set_label('Elevation (m)', fontsize=14)
     # Plot the surface (creek), equivalent to MATLAB's surf command
-    ax.contour(X2, Y2, creek, colors='black', linewidths=0.5, alpha=0.5)
+    ax.contour(X2_flipped, Y2_flipped, creek, colors='black', linewidths=0.5, alpha=0.5)
     # Mesh with black gridlines
     mask = ~np.isnan(creek)
-    ax.pcolormesh(X, Y, mask, cmap='binary', alpha=0.3, edgecolors='none', linewidths=0.5)
+    ax.pcolormesh(X_flipped, Y_flipped, mask, cmap='binary', alpha=0.3, edgecolors='none', linewidths=0.5)
 
     # Customize the axis labels and formatting
     ax.set_xlabel('Distance (m)', fontsize=16, fontweight='bold')
     ax.set_ylabel('Distance (m)', fontsize=16, fontweight='bold')
     ax.tick_params(axis='both', which='major', labelsize=14)
+    ax.invert_yaxis()
     plt.subplots_adjust(right=0.75)  # plot will take up X% of the total figure width
 
     # Hypsometry curve
@@ -290,10 +310,19 @@ def figure_creek_detection(X, Y, creek, X2, Y2, Z2, CumArea, binrange, CumAreas,
     Z2_masked = np.ma.masked_invalid(Z2)
     # Create a flat Z value (can be at any constant height, e.g., Z=0)
     Z_plane = np.zeros_like(Z2_masked)
+    # # Plot the surface with the custom colormap and use Z2 values for color
+    # p = ax.plot_surface(X2, Y2, Z_plane, facecolors=cm(Z2), rstride=5, cstride=5, edgecolor='none', alpha=0.8)
+    # # Plot the 3D surface for the creek with mesh gridlines in black
+    # surf = ax.plot_surface(X2, Y2, creek, cmap='winter', edgecolor='black', alpha=0.6)
+    
+    # Flip the X2 and Y2 arrays
+    X2_flipped = Y2  # Swap X and Y values
+    Y2_flipped = X2
     # Plot the surface with the custom colormap and use Z2 values for color
-    p = ax.plot_surface(X2, Y2, Z_plane, facecolors=cm(Z2), rstride=5, cstride=5, edgecolor='none', alpha=0.8)
+    p = ax.plot_surface(X2_flipped, Y2_flipped, Z_plane, facecolors=cm(Z2), rstride=5, cstride=5, edgecolor='none', alpha=0.8)
     # Plot the 3D surface for the creek with mesh gridlines in black
-    surf = ax.plot_surface(X2, Y2, creek, cmap='winter', edgecolor='black', alpha=0.6)
+    surf = ax.plot_surface(X2_flipped, Y2_flipped, creek, cmap='winter', edgecolor='black', alpha=0.6)
+    
     # Add color bar for the 2D plane
     # Create a ScalarMappable for the colorbar based on the custom colormap
     sm = ScalarMappable(cmap=cm)
@@ -314,6 +343,7 @@ def figure_creek_detection(X, Y, creek, X2, Y2, Z2, CumArea, binrange, CumAreas,
     ax.set_box_aspect([1, 1, 0.2])  # Keep Z aspect small to flatten
     # turn off gridlines
     ax.grid(False)
+    ax.invert_yaxis()
 
     # Hypsometry curve
     ax1 = fig.add_axes([0.65, 0.1, 0.18, 0.22]) # The argument passed is a list: [left, bottom, width, height]
@@ -334,7 +364,6 @@ def figure_creek_detection(X, Y, creek, X2, Y2, Z2, CumArea, binrange, CumAreas,
     ax2.xaxis.set_ticks_position('top')
     ax2.xaxis.set_label_position('top')
 
-    plt.tight_layout()
     plt.show()
 
 def figure_raw_creek_mask(creekmask):
@@ -346,13 +375,20 @@ def figure_raw_creek_mask(creekmask):
     creekmaskpic[creekmask == 0] = 1
 
     plt.ion()
-    plt.figure(figsize=(4,5))
-    plt.imshow(creekmaskpic, cmap='gray')
-    plt.title('Raw creek area mask')
-    plt.axis('off')
+    plt.figure(figsize=(4, 5))
+    # Transpose axes
+    creekmaskpic = np.transpose(creekmaskpic)
+    # Create a custom binary colormap
+    cmap = ListedColormap(['black', 'white'])
+    # Display the image
+    ax = plt.gca()  # Get current axis
+    ax.imshow(creekmaskpic, cmap=cmap)
+    ax.set_title('Raw creek area mask')
+    ax.axis('off')  # Turn off the axis labels
     # The commented out lines in the MATLAB code are not translated
     # as they use the 'imoverlay' function which doesn't have a direct
     # equivalent in matplotlib. If needed, we can implement a custom solution.
+    # Show the plot
     plt.show()
 
 def main(threshold, Zs, Z, gs, Cth, HZth, LZth, X, Y, X2, Y2, HZtharea, LZtharea, Ctharea):
@@ -383,7 +419,7 @@ def main(threshold, Zs, Z, gs, Cth, HZth, LZth, X, Y, X2, Y2, HZtharea, LZtharea
     # Map the creek network based on the threshold criteria
     # Ensure Z is a numpy array
     Z = np.array(Z)
-    X, Y = np.meshgrid(np.arange(Z.shape[1]), np.arange(Z.shape[0]))
+    X, Y = np.meshgrid(np.arange(Z.shape[1]), np.arange(Z.shape[0])) # check 0,1 vs. 1,0
     X2, Y2 = X, Y  # Assuming X2, Y2 are the same as X, Y
     figure_creek_detection(X, Y, creek, X2, Y2, Z, CumArea, binrange, CumAreas, binranges, LZtharea, LZth, HZtharea, HZth, Ctharea, Cth)
 
