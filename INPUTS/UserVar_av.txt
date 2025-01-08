@@ -3,7 +3,7 @@
 # =========================================
 
 name='Ashleyville Restoration Site'				# Name of the site, will appear in figures 
-shortname='av'                                  # Shortname of site, used in saved filenames 	
+shortname='av'                                  		# Shortname of site, used in saved filenames 	
 elev='INPUTS/av_DEM_converted_m_fillNoData.h5'			# Path and name of the elevation map .txt file
 elevmeta='INPUTS/av_DEM_converted_m_fillNoData_metadata.h5'	# Path and name of the elevation map .txt metadata file
 slope='INPUTS/av_slope_degrees_fillNoData.h5'			# Path and name of the slope map .txt file

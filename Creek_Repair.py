@@ -28,6 +28,7 @@ def reconnect_diagnostic(creek_mask, noise_threshold, reconnection_dist, connect
         
         # Visualize objects
         fig, ax = plt.subplots(figsize=(10, 10))
+        contours = np.transpose(contours)
         ax.imshow(contours, cmap='gray')
         ax.set_title(f"Objects in Iteration {iteration}")
         
@@ -295,6 +296,7 @@ def repair_diagnostic(creekmask, filtersmall1, filterlarge1, connectivity, smoot
     axs = axs.ravel()
     
     for i, (stage, title) in enumerate(zip(stages, titles)):
+        stage = np.transpose(stage)
         axs[i].imshow(stage, cmap='gray')
         axs[i].set_title(title)
         axs[i].axis('off')

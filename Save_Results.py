@@ -55,20 +55,24 @@ def process_creek_morphometry(ANGLEORDER, ID, SEGMENTS, SINUOUSLENGTH, SINUOSITY
     WIDTH = pad_array(WIDTH, n_rows)
     DEPTH = pad_array(DEPTH, n_rows)
     AREA = pad_array(AREA, n_rows)
-   
+
+    # prepare for mean calculations
+    SEGMENTS_reshaped = SEGMENTS.reshape(-1, 1)
+    safe_segments = np.where(SEGMENTS_reshaped == 0, np.nan, SEGMENTS_reshaped) # Avoid division by zero by replacing zero SEGMENTS with NaN
+
     # Create summary data with error handling
     with np.errstate(invalid='ignore'):
         summary_data = np.column_stack([
             ID.reshape(-1, 1),
             SEGMENTS.reshape(-1, 1),
             np.nansum(SINUOUSLENGTH, axis=1, keepdims=True),
-            np.nanmean(SINUOUSLENGTH, axis=1, keepdims=True),
-            np.nanmean(SINUOSITY, axis=1, keepdims=True),
-            np.nanmean(WIDTH, axis=1, keepdims=True),
-            np.nanmean(DEPTH, axis=1, keepdims=True),
-            np.nanmean(AREA, axis=1, keepdims=True),
+            (np.nansum(SINUOUSLENGTH, axis=1, keepdims=True) / safe_segments),
+            (np.nansum(SINUOSITY, axis=1, keepdims=True) / safe_segments),
+            (np.nansum(WIDTH, axis=1, keepdims=True) / safe_segments),
+            (np.nansum(DEPTH, axis=1, keepdims=True) / safe_segments),
+            (np.nansum(AREA, axis=1, keepdims=True) / safe_segments),
             np.nansum(STRAIGHTDIST, axis=1, keepdims=True),
-            np.nanmean(STRAIGHTDIST, axis=1, keepdims=True)
+            (np.nansum(STRAIGHTDIST, axis=1, keepdims=True) / safe_segments),
         ])
     
     summary_columns = [
@@ -79,6 +83,8 @@ def process_creek_morphometry(ANGLEORDER, ID, SEGMENTS, SINUOUSLENGTH, SINUOSITY
     
     # Create DataFrame for summary table
     SUMMARY_df = pd.DataFrame(summary_data, columns=summary_columns)
+    # Reverse the values of the 'RS order' column
+    SUMMARY_df['RS order'] = SUMMARY_df['RS order'][::-1].values
     
     # Create detailed measurement tables
     with np.errstate(invalid='ignore'):
@@ -264,6 +270,8 @@ def process_creek_morphometry_diagnostic(ANGLEORDER, ID, SEGMENTS, SINUOUSLENGTH
     
     # Create DataFrame for summary table
     SUMMARY_df = pd.DataFrame(summary_data, columns=summary_columns)
+    # Reverse the values of the 'RS order' column
+    SUMMARY_df['RS order'] = SUMMARY_df['RS order'][::-1].values
     
     # Create detailed measurement tables
     with np.errstate(invalid='ignore'):

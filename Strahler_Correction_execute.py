@@ -20,6 +20,8 @@ STRAIGHTDIST = variables["STRAIGHTDIST"]
 IDXBRANCH = variables["IDXBRANCH"]
 IDXSEG = variables["IDXSEG"]
 
+shortname = variables["shortname"]
+
 def create_meshgrid(x, y):
     """Create proper 2D meshgrid from 1D coordinate arrays"""
     # Ensure inputs are numpy arrays
@@ -58,7 +60,7 @@ def convert_to_numpy(data, dtype=None):
         print("Data sample:", data[:2] if isinstance(data, list) else data)
         raise
 
-def save_processed_values(analyzer, skeleton, X, Y, pts, order_max):
+def save_processed_values(analyzer, skeleton, X, Y, pts, order_max, shortname):
     """
     Save the processed values from the CreekNetworkAnalyzer to a JSON file.
     
@@ -94,7 +96,7 @@ def save_processed_values(analyzer, skeleton, X, Y, pts, order_max):
     }
 
     # Save to a JSON file
-    with open("processed_variables_Strahler_Correction.json", "w") as f:
+    with open(f"OUTPUTS/{shortname}_processed_variables_Strahler_Correction.json", "w") as f:
         json.dump(variables_correction, f)
     
     print("Processed values saved to 'processed_variables_Strahler_Correction.json'")
@@ -152,7 +154,7 @@ def main(skeleton, X, Y, creek_order, creek_order_single, pts, order_max):
         analyzer.process_corrected_segments()
 
         # Save processed values
-        save_processed_values(analyzer, skeleton, X, Y, pts, order_max)
+        save_processed_values(analyzer, skeleton, X, Y, pts, order_max, shortname)
         
         print("Analysis complete!")
         

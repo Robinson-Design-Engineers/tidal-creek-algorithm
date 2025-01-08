@@ -601,7 +601,7 @@ def process_xsects_diagnostic(creekmask, creek, skeleton, IDXSEG, ordermax, figv
                 # Find indices belonging to both segmentmask and creekmask
                 creekmasktemp = creekmask/2
                 creekmasktemp = creekmasktemp + segmentmask
-
+                print('creekmasktemp = \n', creekmasktemp)
                 # In creekmasktemp, pixel=1 belongs to both the cross-section and the creek, 
                 # pixel=0.5 belongs only to one of them
                 creekmasktemp[creekmasktemp == 0.5] = 0
@@ -611,13 +611,16 @@ def process_xsects_diagnostic(creekmask, creek, skeleton, IDXSEG, ordermax, figv
 
                 # Get connected components labeled matrix (equivalent to bwconncomp + labelmatrix)
                 L, num_features = ndimage.label(creekmasktemp, structure=np.ones((3,3)))
+                print('L = \n', L)
                 # Now L contains labels 1,2,3... for each connected component, just like MATLAB
                 
                 # Get label number of the object containing the middle point
                 objectnum = L[y1, x1] # x,y or y,x?
+                print('objectnum = ', objectnum)
 
                 # Remove elements not connected to middle point
                 creekmasktemp[L != objectnum] = 0
+                print('filtered creekmasktemp = \n', creekmasktemp)
 
                 # Get indices of the object we want to keep
                 yobj, xobj = np.where(L == objectnum)  # note: returns row, col indices
@@ -634,9 +637,13 @@ def process_xsects_diagnostic(creekmask, creek, skeleton, IDXSEG, ordermax, figv
                 if len(C) > 0:
                     xline2 = C[:, 1]
                     yline2 = C[:, 0]
+                    print('xline2 = ', xline2)
+                    print('yline2 = ', yline2)
                 else:
                     xline2 = np.array([])
                     yline2 = np.array([])
+                    print('xline2 = ', xline2)
+                    print('yline2 = ', yline2)
 
                 if len(xline2) > 1:
                     # Create binary mask
@@ -666,8 +673,8 @@ def process_xsects_diagnostic(creekmask, creek, skeleton, IDXSEG, ordermax, figv
                     xline2, yline2 = zip(*line_points)
                     xline2 = np.array(xline2)
                     yline2 = np.array(yline2)
-                    # print('xline2 after bresenham = ', xline2)
-                    # print('yline2 after bresenham = ', yline2)
+                    print('xline2 after bresenham = ', xline2)
+                    print('yline2 after bresenham = ', yline2)
                 
                 # Add NaN padding to array
                 yline2_padded = np.concatenate(([np.nan], yline2, [np.nan]))
@@ -686,8 +693,8 @@ def process_xsects_diagnostic(creekmask, creek, skeleton, IDXSEG, ordermax, figv
                     # Extract the longest block
                     xline2 = xline2[F[L]:F[L] + M + 1]  # The longest block
                     yline2 = yline2[F[L]:F[L] + M + 1]
-                    # print('xline2 after longest block = ', xline2)
-                    # print('yline2 after longest block = ', yline2)
+                    print('xline2 after longest block = ', xline2)
+                    print('yline2 after longest block = ', yline2)
                 
                 # Calculate line parameters
                 A3 = (yline2[-1] - yline2[0]) / (xline2[-1] - xline2[0])  # slope
@@ -722,8 +729,8 @@ def process_xsects_diagnostic(creekmask, creek, skeleton, IDXSEG, ordermax, figv
                 valid_indices = ~np.isnan(xline2) & ~np.isnan(yline2)
                 xline2 = xline2[valid_indices]
                 yline2 = yline2[valid_indices]
-                # print('xline2 after remove nan = ', xline2)
-                # print('yline2 after remove nan = ', yline2)
+                print('xline2 after remove nan = ', xline2)
+                print('yline2 after remove nan = ', yline2)
                 
                 if len(xline2) > 1:
                     # Convert coordinates and creek to numpy arrays only if needed
@@ -736,7 +743,7 @@ def process_xsects_diagnostic(creekmask, creek, skeleton, IDXSEG, ordermax, figv
                         
                     # Get elevation profile
                     z_profile = creek[yline2.astype(int), xline2.astype(int)]
-                    # print('z_profile = ', z_profile)
+                    print('z_profile = ', z_profile)
                     
                     if len(z_profile) > 1 and np.sum(~np.isnan(z_profile)) >= 2:
                         print("Current indices:", order, iter)

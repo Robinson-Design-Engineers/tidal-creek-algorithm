@@ -222,7 +222,7 @@ def process_creek_ordering(ordermax, Z, skeleton, outletdetection, nbbreaches):
                 continue
             
             # Find isolated segment (end point closer than branch point) - I guess like a vernal pool? -SamK
-            elif distanceToEndPt < distanceToBranchPt:
+            elif np.isfinite(distanceToEndPt) and np.isfinite(distanceToBranchPt) and distanceToEndPt < distanceToBranchPt:
                 # Store segment real length into strahler table
                 STRAHLER[i,k] = distanceToEndPt
 
@@ -267,7 +267,7 @@ def process_creek_ordering(ordermax, Z, skeleton, outletdetection, nbbreaches):
                     new_values = [x1, y1, x2, y2, x3, y3]
                     IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
                     IDXSEG[i, -6:] = new_values
-
+                
                 col += 6
 
                 # Prepare to remove the segments order i
@@ -478,7 +478,7 @@ def process_creek_ordering(ordermax, Z, skeleton, outletdetection, nbbreaches):
                 continue
             
             # Find isolated segment (end point closer than branch point) - I guess like a vernal pool? -SamK
-            elif distanceToEndPt < distanceToBranchPt:
+            elif np.isfinite(distanceToEndPt) and np.isfinite(distanceToBranchPt) and distanceToEndPt < distanceToBranchPt:
                 # Store segment real length into strahler table
                 STRAHLER[i,k] = distanceToEndPt
 
@@ -736,7 +736,7 @@ def process_creek_ordering(ordermax, Z, skeleton, outletdetection, nbbreaches):
             continue
         
         # Find isolated segment (end point closer than branch point) - I guess like a vernal pool? -SamK
-        elif distanceToEndPt < distanceToBranchPt:
+        elif np.isfinite(distanceToEndPt) and np.isfinite(distanceToBranchPt) and distanceToEndPt < distanceToBranchPt:
             # Store segment real length into strahler table
             STRAHLER[i,k] = distanceToEndPt
 
@@ -1123,6 +1123,9 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
                 distanceToEndPt = np.min(finite_end_distances).astype(float)
             except ValueError:
                 distanceToEndPt = np.inf  # or another appropriate value
+
+            print('distanceToEndPt = ', distanceToEndPt)
+            print('distanceToBranchPt = ', distanceToBranchPt)
             
             # Three possibilities here: the end point we have detected can be:
             # 1) an isolated point (no creek segment to detect)
@@ -1141,7 +1144,7 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
                 continue
             
             # Find isolated segment (end point closer than branch point) - I guess like a vernal pool? -SamK
-            elif distanceToEndPt < distanceToBranchPt:
+            elif np.isfinite(distanceToEndPt) and np.isfinite(distanceToBranchPt) and distanceToEndPt < distanceToBranchPt:
                 # Store segment real length into strahler table
                 STRAHLER[i,k] = distanceToEndPt
 
@@ -1186,6 +1189,11 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
                     new_values = [x1, y1, x2, y2, x3, y3]
                     IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
                     IDXSEG[i, -6:] = new_values
+
+                print('STRAHLER = ', STRAHLER)
+                print('STRAIGHTDIST = ', STRAIGHTDIST)
+                print('IDXSEG = ', IDXSEG)
+                print('IDXBRANCH = ', IDXBRANCH)
 
                 col += 6
                 print('col = ', col)
@@ -1241,6 +1249,11 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
                     IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
                     IDXSEG[i, -6:] = new_values
 
+                print('STRAHLER = ', STRAHLER)
+                print('STRAIGHTDIST = ', STRAIGHTDIST)
+                print('IDXSEG = ', IDXSEG)
+                print('IDXBRANCH = ', IDXBRANCH)
+
                 col += 6
                 print('col = ', col)
                 
@@ -1284,6 +1297,11 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
                     new_values = [x1, y1, x2, y2, x3, y3]
                     IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
                     IDXSEG[i, -6:] = new_values
+
+                print('STRAHLER = ', STRAHLER)
+                print('STRAIGHTDIST = ', STRAIGHTDIST)
+                print('IDXSEG = ', IDXSEG)
+                print('IDXBRANCH = ', IDXBRANCH)
 
                 col += 6
                 print('col = ', col)
@@ -1425,7 +1443,7 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
                 continue
             
             # Find isolated segment (end point closer than branch point) - I guess like a vernal pool? -SamK
-            elif distanceToEndPt < distanceToBranchPt:
+            elif np.isfinite(distanceToEndPt) and np.isfinite(distanceToBranchPt) and distanceToEndPt < distanceToBranchPt:
                 # Store segment real length into strahler table
                 STRAHLER[i,k] = distanceToEndPt
 
@@ -1470,6 +1488,11 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
                     new_values = [x1, y1, x2, y2, x3, y3]
                     IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
                     IDXSEG[i, -6:] = new_values
+
+                print('STRAHLER = ', STRAHLER)
+                print('STRAIGHTDIST = ', STRAIGHTDIST)
+                print('IDXSEG = ', IDXSEG)
+                print('IDXBRANCH = ', IDXBRANCH)
 
                 col += 6
                 print('col = ', col)
@@ -1525,6 +1548,11 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
                     IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
                     IDXSEG[i, -6:] = new_values
 
+                print('STRAHLER = ', STRAHLER)
+                print('STRAIGHTDIST = ', STRAIGHTDIST)
+                print('IDXSEG = ', IDXSEG)
+                print('IDXBRANCH = ', IDXBRANCH)
+
                 col += 6
                 print('col = ', col)
 
@@ -1568,6 +1596,11 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
                     new_values = [x1, y1, x2, y2, x3, y3]
                     IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
                     IDXSEG[i, -6:] = new_values
+
+                print('STRAHLER = ', STRAHLER)
+                print('STRAIGHTDIST = ', STRAIGHTDIST)
+                print('IDXSEG = ', IDXSEG)
+                print('IDXBRANCH = ', IDXBRANCH)
 
                 col += 6
                 print('col = ', col)
@@ -1709,7 +1742,7 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
             continue
         
         # Find isolated segment (end point closer than branch point) - I guess like a vernal pool? -SamK
-        elif distanceToEndPt < distanceToBranchPt:
+        elif np.isfinite(distanceToEndPt) and np.isfinite(distanceToBranchPt) and distanceToEndPt < distanceToBranchPt:
             # Store segment real length into strahler table
             STRAHLER[i,k] = distanceToEndPt
 
@@ -1757,6 +1790,11 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
                 IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
                 IDXSEG[i, -6:] = new_values
 
+            print('STRAHLER = ', STRAHLER)
+            print('STRAIGHTDIST = ', STRAIGHTDIST)
+            print('IDXSEG = ', IDXSEG)
+            print('IDXBRANCH = ', IDXBRANCH)
+        
             col += 6
             print('col = ', col)
 
@@ -1815,6 +1853,11 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
                 IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
                 IDXSEG[i, -6:] = new_values
 
+            print('STRAHLER = ', STRAHLER)
+            print('STRAIGHTDIST = ', STRAIGHTDIST)
+            print('IDXSEG = ', IDXSEG)
+            print('IDXBRANCH = ', IDXBRANCH)
+        
             col += 6
             print('col = ', col)
 
@@ -1861,6 +1904,11 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
                 new_values = [x1, y1, x2, y2, x3, y3]
                 IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
                 IDXSEG[i, -6:] = new_values
+
+            print('STRAHLER = ', STRAHLER)
+            print('STRAIGHTDIST = ', STRAIGHTDIST)
+            print('IDXSEG = ', IDXSEG)
+            print('IDXBRANCH = ', IDXBRANCH)
 
             col += 6
             print('col = ', col)
@@ -2082,6 +2130,11 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
                                 IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
                                 IDXSEG[i, -6:] = new_values
 
+                            print('STRAHLER = ', STRAHLER)
+                            print('STRAIGHTDIST = ', STRAIGHTDIST)
+                            print('IDXSEG = ', IDXSEG)
+                            print('IDXBRANCH = ', IDXBRANCH)
+
                             col += 6
                             print('col = ', col)
 
@@ -2197,6 +2250,8 @@ def process_outlet_detection(Z, skeleton, nbbreaches):
     
     # Create the breach indices
     idxbreach = np.ravel_multi_index((new_ybreach, new_xbreach), Z.shape)
+
+    # #debugging prints:
     # print('new_xbreach = ', new_xbreach)
     # print('new_ybreach = ', new_ybreach)
     # print('idxbreach = ', idxbreach)
@@ -2609,7 +2664,7 @@ def calculate_geodesic_distance(mask, start_y, start_x):
     
     for p in points:
         G.add_node(p)
-    
+
     for y, x in points:
         for dy in [-1, 0, 1]:
             for dx in [-1, 0, 1]:
@@ -2617,15 +2672,13 @@ def calculate_geodesic_distance(mask, start_y, start_x):
                     continue
                 num_y, num_x = y + dy, x + dx
                 if (num_y, num_x) in G.nodes():
-                    G.add_edge((y, x), (num_y, num_x), weight=1)
+                    weight = np.sqrt(dy**2 + dx**2)  # Assign √2 for diagonal, 1 for horizontal/vertical
+                    G.add_edge((y, x), (num_y, num_x), weight=weight)
+
     
     distances = np.full_like(mask, np.nan, dtype=float)
-    # # # Make sure start_y and start_x are integers, not numpy types
-    # start_y = int(start_y) if not isinstance(start_y, (int, float)) else int(float(start_y))
-    # start_x = int(start_x) if not isinstance(start_x, (int, float)) else int(float(start_x))
-    # print('      start_y, start_x = ', (start_y, start_x))
+    
     if (start_y, start_x) in G.nodes():
-    # if (int(start_y), int(start_x)) in G.nodes():
         path_lengths = nx.single_source_dijkstra_path_length(
             G, (start_y, start_x), weight='weight')
         for (y, x), dist in path_lengths.items():

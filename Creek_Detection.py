@@ -57,6 +57,7 @@ HZtharea = variables["HZtharea"]
 HZth = variables["HZth"]
 Ctharea = variables["Ctharea"]
 Cth = variables["Cth"]
+shortname = variables["shortname"]
 
 # # Now use these variables in your script
 # # Example usage
@@ -221,6 +222,10 @@ def creek_detection_manual(Zs, Z, gs):
     outercreek = np.nan_to_num(outercreek)
     creek = innercreek + outercreek
     creek[creek == 0] = np.nan
+    
+    print('HZth, HZtharea = ', (HZth, HZtharea))
+    print('LZth, LZtharea = ', (LZth, LZtharea))
+    print('Cth, Ctharea = ', (Cth, Ctharea))
 
     return creek, CumArea, binrange, CumAreas, binranges, HZth, LZth, Cth, HZtharea, LZtharea, Ctharea
 
@@ -391,7 +396,7 @@ def figure_raw_creek_mask(creekmask):
     # Show the plot
     plt.show()
 
-def main(threshold, Zs, Z, gs, Cth, HZth, LZth, X, Y, X2, Y2, HZtharea, LZtharea, Ctharea):
+def main(threshold, Zs, Z, gs, Cth, HZth, LZth, X, Y, X2, Y2, HZtharea, LZtharea, Ctharea, shortname):
     if threshold == 0:
         creek, CumArea, binrange, CumAreas, binranges, _, _ = creek_detection(Zs, Z, gs, Cth, HZth, LZth)
     else:
@@ -413,7 +418,7 @@ def main(threshold, Zs, Z, gs, Cth, HZth, LZth, X, Y, X2, Y2, HZtharea, LZtharea
     }
 
     # Save to a JSON file
-    with open("processed_variables_Creek_Detection.json", "w") as f:
+    with open(f"OUTPUTS/{shortname}_processed_variables_Creek_Detection.json", "w") as f:
         json.dump(variables_correction, f)
 
     # Map the creek network based on the threshold criteria
@@ -439,7 +444,7 @@ def main(threshold, Zs, Z, gs, Cth, HZth, LZth, X, Y, X2, Y2, HZtharea, LZtharea
 # LZth = ... # your low elevation threshold
 # creekmask = main(threshold, Zs, Z, gs, Cth, HZth, LZth)
 
-creekmask = main(threshold, Zs, Z, gs, Cth, HZth, LZth, X, Y, X2, Y2, HZtharea, LZtharea, Ctharea)
+creekmask = main(threshold, Zs, Z, gs, Cth, HZth, LZth, X, Y, X2, Y2, HZtharea, LZtharea, Ctharea, shortname)
 with h5py.File('creekmask_raw.h5', 'w') as hf:
     hf.create_dataset("creekmask_raw", data=creekmask)
 
