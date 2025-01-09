@@ -335,11 +335,24 @@ def process_creek_mask_diagnostic(creek_mask, reconnect_flag, noise_threshold, r
 
 def process_creek_mask(creek_mask, reconnect_flag, noise_threshold, reconnection_dist, connectivity,
                        filter_small1, filter_large1, smoothing, filter_small2, filter_large2, hole_size_infill):
+    
+    creek_mask_og = creek_mask
+    
     if reconnect_flag:
         creek_mask = reconnect(creek_mask, noise_threshold, reconnection_dist, connectivity)
         figure_reconnected_creek_mask(creek_mask)
 
     creek_mask = repair(creek_mask, filter_small1, filter_large1, connectivity, smoothing, filter_small2, filter_large2, hole_size_infill)
+    
+    # print original creekmask
+    plt.figure()
+    creek_mask_og = np.transpose(creek_mask_og)
+    plt.imshow(creek_mask_og, cmap='gray')
+    plt.title('Original creek area mask')
+    # plt.axis('off')
+    plt.show()
+
+    # print repaired creekmask
     figure_repaired_creek_mask(creek_mask)
 
     return creek_mask

@@ -33,11 +33,11 @@ MLWN=0.052;							# Mean Low Water Neap
 # =========================================
 
 Cth=10;								# Slope threshold (edges of creeks)
-Ctharea=888000;							# Slope threshold area (to plot on slope distribution curve)
+Ctharea=823000;							# Slope threshold area (to plot on slope distribution curve)
 LZth=0;								# Lower elevation threshold (bottom of creeks)
 LZtharea=0;							# Lower elevation threshold area (to plot on hypsometry curve)
 HZth=0.35;							# Higher elevation threshold (remove mounts)
-HZtharea=160000;						# Higher elevation threshold area (to plot on hypsometry curve)
+HZtharea=200000;						# Higher elevation threshold area (to plot on hypsometry curve)
 
 # =========================================
 # CREEK REPAIR PARAMETERS

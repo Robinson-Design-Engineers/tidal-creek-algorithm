@@ -9,6 +9,7 @@ from matplotlib.colors import ListedColormap
 from matplotlib.patches import Polygon
 from matplotlib.collections import PatchCollection
 from matplotlib.cm import ScalarMappable
+import matplotlib.ticker as mticker
 from mpl_toolkits.mplot3d import Axes3D
 import h5py
 
@@ -135,9 +136,14 @@ def process_detect_threshold(CumArea, binrange, titlefig, ylabtxt):
     plt.figure(figsize=(12,10))
     plt.plot(CumArea, binrange, marker='.')
     plt.title(titlefig)
-    plt.xlabel('Cumulative Area (km^2)')
+    plt.xlabel('Cumulative Area (sqm) ')
     plt.ylabel(ylabtxt)
     plt.grid(True)
+    # Set x-axis to scientific notation
+    ax = plt.gca()  # Get the current axis
+    formatter = mticker.ScalarFormatter(useMathText=True)
+    formatter.set_powerlimits((-3, 3))  # Set limits for scientific notation
+    ax.xaxis.set_major_formatter(formatter)
 
     print("Please click on the plot to select the threshold.")
     point = plt.ginput(1)[0]
@@ -290,15 +296,23 @@ def figure_creek_detection(X, Y, creek, X2, Y2, Z2, CumArea, binrange, CumAreas,
     ax1.plot(CumArea, binrange, marker='.')
     ax1.plot(LZtharea, LZth, marker='x', markersize=msize*1.3, color='r')
     ax1.plot(HZtharea, HZth, marker='x', markersize=msize*1.3, color='r')
-    ax1.set_xlabel('Cumulative Area (sqm)')
+    ax1.set_xlabel('Cumulative Area (sqm) ')
     ax1.set_ylabel('Elevation (m)')
+    # Set x-axis to scientific notation
+    formatter = mticker.ScalarFormatter(useMathText=True)
+    formatter.set_powerlimits((-3, 3))  # Set limits for scientific notation
+    ax1.xaxis.set_major_formatter(formatter)
 
     # Slope curve
     ax2 = fig.add_axes([0.8, 0.65, 0.18, 0.22])
     ax2.plot(CumAreas, binranges, marker='.')
     ax2.plot(Ctharea, Cth, marker='o', markersize=msize*1.3, markerfacecolor='none', markeredgecolor='blue')
-    ax2.set_xlabel('Cumulative Area (sqm)')
+    ax2.set_xlabel('Cumulative Area (sqm) ')
     ax2.set_ylabel('Slope (degree)')
+    # Set x-axis to scientific notation
+    formatter = mticker.ScalarFormatter(useMathText=True)
+    formatter.set_powerlimits((-3, 3))  # Set limits for scientific notation
+    ax2.xaxis.set_major_formatter(formatter)
 
     # plt.tight_layout()
     plt.show()
@@ -359,6 +373,10 @@ def figure_creek_detection(X, Y, creek, X2, Y2, Z2, CumArea, binrange, CumAreas,
     ax1.set_ylabel('Elevation (m)')
     ax1.xaxis.set_ticks_position('top')
     ax1.xaxis.set_label_position('top')
+    # Set x-axis to scientific notation
+    formatter = mticker.ScalarFormatter(useMathText=True)
+    formatter.set_powerlimits((-3, 3))  # Set limits for scientific notation
+    ax1.xaxis.set_major_formatter(formatter)
 
     # Slope curve
     ax2 = fig.add_axes([0.05, 0.7, 0.15, 0.22])
@@ -368,6 +386,10 @@ def figure_creek_detection(X, Y, creek, X2, Y2, Z2, CumArea, binrange, CumAreas,
     ax2.set_ylabel('Slope (degree)')
     ax2.xaxis.set_ticks_position('top')
     ax2.xaxis.set_label_position('top')
+    # Set x-axis to scientific notation
+    formatter = mticker.ScalarFormatter(useMathText=True)
+    formatter.set_powerlimits((-3, 3))  # Set limits for scientific notation
+    ax2.xaxis.set_major_formatter(formatter)
 
     plt.show()
 
@@ -445,7 +467,7 @@ def main(threshold, Zs, Z, gs, Cth, HZth, LZth, X, Y, X2, Y2, HZtharea, LZtharea
 # creekmask = main(threshold, Zs, Z, gs, Cth, HZth, LZth)
 
 creekmask = main(threshold, Zs, Z, gs, Cth, HZth, LZth, X, Y, X2, Y2, HZtharea, LZtharea, Ctharea, shortname)
-with h5py.File('creekmask_raw.h5', 'w') as hf:
+with h5py.File(f'OUTPUTS/{shortname}_creekmask_raw.h5', 'w') as hf:
     hf.create_dataset("creekmask_raw", data=creekmask)
 
 # Prevent script from closing immediately
