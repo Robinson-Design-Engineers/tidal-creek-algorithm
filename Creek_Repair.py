@@ -1,6 +1,8 @@
 import numpy as np
 from scipy import ndimage
 from skimage import morphology, measure, segmentation, filters, draw # type: ignore
+from skimage.measure import label, regionprops
+from scipy.ndimage import label, generate_binary_structure, binary_fill_holes
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 import h5py
@@ -193,30 +195,102 @@ def reconnect(creek_mask, noise_threshold, reconnection_dist, connectivity):
 
 def bwareafilt(binary_image, size_range, connectivity=2):
     """
-    Replicates MATLAB's bwareafilt function in Python.
-    
+    Replicates MATLAB's bwareafilt function in Python, with connectivity visualization.
+
     Parameters:
     binary_image (ndarray): Input binary image
     size_range (list or tuple): Two-element list specifying [min_size, max_size]
     connectivity (int): Connectivity for connected components (default is 2 for 8-connectivity)
-    
+
     Returns:
     ndarray: Filtered binary image
     """
     # Ensure the image is binary
     binary_image = binary_image.astype(bool)
-    
+
     # Remove small objects
     filtered = morphology.remove_small_objects(binary_image, min_size=size_range[0], connectivity=connectivity)
-    
+
     # Invert the image to remove large objects (which are now small holes)
     inverted = ~filtered
     max_hole_size = binary_image.size - size_range[1]
     filtered_inverted = morphology.remove_small_objects(inverted, min_size=max_hole_size, connectivity=connectivity)
-    
+
     # Invert back
     result = ~filtered_inverted
-    
+
+    return result
+
+def bwareafilt_diagnostic(binary_image, size_range, connectivity=2):
+    """
+    Replicates MATLAB's bwareafilt function in Python, with connectivity visualization.
+
+    Parameters:
+    binary_image (ndarray): Input binary image
+    size_range (list or tuple): Two-element list specifying [min_size, max_size]
+    connectivity (int): Connectivity for connected components (default is 2 for 8-connectivity)
+
+    Returns:
+    ndarray: Filtered binary image
+    """
+    # Ensure the image is binary
+    binary_image = binary_image.astype(bool)
+
+    # Define connectivity (1 for 4-connectivity, 2 for 8-connectivity)
+    connectivity = 2
+    conn_structure = generate_binary_structure(rank=2, connectivity=connectivity)
+
+    # Label connected components
+    labeled_image, num_features = ndimage.label(binary_image, structure=conn_structure)
+
+    print(f"Number of connected components: {num_features}")
+    # print("Labeled Image:")
+    # print(labeled_image)
+
+    # Visualize the labeled image with a colormap
+    plt.figure(figsize=(6, 6))
+    labeled_image = np.transpose(labeled_image)
+    plt.imshow(labeled_image, cmap='tab20', interpolation='nearest')
+    plt.colorbar(label="Component Label")
+    plt.title(f"Labeled Connected Components (Connectivity={connectivity})")
+    # plt.axis('off')
+    plt.show()
+
+    # Visualize the binary image
+    plt.figure(figsize=(6, 6))
+    binary_image_plt = np.transpose(binary_image)
+    plt.imshow(binary_image_plt, cmap='gray')
+    plt.title(f"Before remove small objects")
+    # plt.axis('off')
+    plt.show()
+
+    # Remove small objects
+    filtered = morphology.remove_small_objects(binary_image, min_size=size_range[0], connectivity=connectivity)
+
+    # Visualize the binary image
+    plt.figure(figsize=(6, 6))
+    filtered_plt = np.transpose(filtered)
+    plt.imshow(filtered_plt, cmap='gray')
+    plt.title(f"After remove small objects")
+    # plt.axis('off')
+    plt.show()
+
+    # Invert the image to remove large objects (which are now small holes)
+    inverted = ~filtered
+    max_hole_size = binary_image.size - size_range[1]
+    filtered_inverted = morphology.remove_small_objects(inverted, min_size=max_hole_size, connectivity=connectivity)
+
+    # Visualize the binary image
+    plt.figure(figsize=(6, 6))
+    filtered_inv_plt = np.transpose(filtered_inverted)
+    plt.imshow(filtered_inv_plt, cmap='gray')
+    plt.title(f"After remove large objects")
+    # plt.axis('off')
+    plt.show()
+
+    # Invert back
+    result = ~filtered_inverted
+
     return result
 
 def fill_small_holes(creekmask, hole_size_infill):
@@ -236,28 +310,193 @@ def fill_small_holes(creekmask, hole_size_infill):
     # Identify all holes
     holes = filled & ~creekmask
     
-    # Remove small holes
-    small_holes = morphology.remove_small_objects(holes, min_size=hole_size_infill, connectivity=2)
+    # Remove large holes
+    big_holes = morphology.remove_small_objects(holes, min_size=hole_size_infill, connectivity=2)
     
-    # Add small holes back to the original image
-    result = creekmask | small_holes
+    # Identify small holes (holes minus large holes)
+    small_holes = holes & ~big_holes
+    
+    # Fill small holes in the creekmask
+    creekmask = creekmask | small_holes
+    
+    # Label connected components in the bigholes image
+    labeled_bigholes = measure.label(big_holes, connectivity=2)  # 4-connectivity equivalent
+    props = regionprops(labeled_bigholes)
+
+    # Process each connected component for small holes within big holes
+    for region in props:
+        # Create a mask for the current connected component
+        objtemp = np.zeros_like(creekmask, dtype=bool)
+        objtemp[tuple(region.coords.T)] = True
+
+        # Fill holes within the connected component
+        filled = binary_fill_holes(objtemp)
+        
+        # Identify holes (filled minus the original connected component)
+        holes = filled & ~objtemp
+        
+        # Remove large holes
+        large_holes = morphology.remove_small_objects(holes, min_size=hole_size_infill, connectivity=2)
+        
+        # Identify small holes
+        small_holes = holes & ~large_holes
+
+        # Fill small holes in the creekmask
+        creekmask = creekmask | small_holes
+
+    result = creekmask
     
     return result
 
+def fill_small_holes_diagnostic(creekmask, hole_size_infill):
+    """
+    Fills small holes in the binary image.
+    
+    Parameters:
+    creekmask (ndarray): Input binary image
+    hole_size_infill (int): Maximum size of holes to fill
+    
+    Returns:
+    ndarray: Binary image with small holes filled
+    """
+    # Fill all holes
+    filled = ndimage.binary_fill_holes(creekmask)
+    # Visualize the binary image
+    plt.figure(figsize=(6, 6))
+    filled_plt = np.transpose(filled)
+    plt.imshow(filled_plt, cmap='gray')
+    plt.title(f"'filled', after fill all holes")
+    # plt.axis('off')
+    plt.show()
+    
+    # Identify all holes
+    holes = filled & ~creekmask
+    # Visualize the binary image
+    plt.figure(figsize=(6, 6))
+    holes_plt = np.transpose(holes)
+    plt.imshow(holes_plt, cmap='gray')
+    plt.title(f"'holes', after indentify all holes")
+    # plt.axis('off')
+    plt.show()
+
+    # Remove large holes
+    big_holes = morphology.remove_small_objects(holes, min_size=hole_size_infill, connectivity=2)
+    # Visualize the binary image
+    plt.figure(figsize=(6, 6))
+    big_holes_plt = np.transpose(big_holes)
+    plt.imshow(big_holes_plt, cmap='gray')
+    plt.title(f"'big_holes', after remove large holes")
+    # plt.axis('off')
+    plt.show()
+
+    # Identify small holes (holes minus large holes)
+    small_holes = holes & ~big_holes
+    # # Remove small holes
+    # small_holes = morphology.remove_small_objects(holes, min_size=hole_size_infill, connectivity=2)
+    # Visualize the binary image
+    plt.figure(figsize=(6, 6))
+    small_holes_plt = np.transpose(small_holes)
+    plt.imshow(small_holes_plt, cmap='gray')
+    plt.title(f"'small_holes', after identify small holes")
+    # plt.axis('off')
+    plt.show()
+
+    # Fill small holes in the creekmask
+    creekmask = creekmask | small_holes
+    # Visualize the binary image
+    plt.figure(figsize=(6, 6))
+    creekmask_plt = np.transpose(creekmask)
+    plt.imshow(creekmask_plt, cmap='gray')
+    plt.title(f"'creekmask_plt', after fill small holes")
+    # plt.axis('off')
+    plt.show()
+
+    # Label connected components in the bigholes image
+    labeled_bigholes = measure.label(big_holes, connectivity=2)  # 4-connectivity equivalent
+    props = regionprops(labeled_bigholes)
+
+    # Process each connected component
+    for region in props:
+        # Create a mask for the current connected component
+        objtemp = np.zeros_like(creekmask, dtype=bool)
+        objtemp[tuple(region.coords.T)] = True
+
+        # Fill holes within the connected component
+        filled = binary_fill_holes(objtemp)
+        # Visualize the binary image
+        plt.figure(figsize=(6, 6))
+        filled_plt = np.transpose(filled)
+        plt.imshow(filled_plt, cmap='gray')
+        plt.title(f"'filled_plt', after Fill holes within the connected component")
+        # plt.axis('off')
+        plt.show()
+
+        # Identify holes (filled minus the original connected component)
+        holes = filled & ~objtemp
+        # Visualize the binary image
+        plt.figure(figsize=(6, 6))
+        holes_plt = np.transpose(holes)
+        plt.imshow(holes_plt, cmap='gray')
+        plt.title(f"'holes_plt', after Identify holes")
+        # plt.axis('off')
+        plt.show()
+
+        # Remove large holes
+        large_holes = morphology.remove_small_objects(holes, min_size=hole_size_infill, connectivity=2)
+        # Visualize the binary image
+        plt.figure(figsize=(6, 6))
+        large_holes_plt = np.transpose(large_holes)
+        plt.imshow(large_holes_plt, cmap='gray')
+        plt.title(f"'large_holes_plt', after Remove large holes")
+        # plt.axis('off')
+        plt.show()
+
+        # Identify small holes
+        small_holes = holes & ~large_holes
+        # Visualize the binary image
+        plt.figure(figsize=(6, 6))
+        small_holes_plt = np.transpose(small_holes)
+        plt.imshow(small_holes_plt, cmap='gray')
+        plt.title(f"'small_holes_plt', after Identify small holes")
+        # plt.axis('off')
+        plt.show()
+
+        # Fill small holes in the creekmask
+        creekmask = creekmask | small_holes
+        # Visualize the binary image
+        plt.figure(figsize=(6, 6))
+        creekmask_plt = np.transpose(creekmask)
+        plt.imshow(creekmask_plt, cmap='gray')
+        plt.title(f"'creekmask_plt', after fill small holes")
+        # plt.axis('off')
+        plt.show()
+
+    result = creekmask
+    
+    return result
+
+
 def morphological_operations(creekmask, smoothing):
     """Performs a gentle sequence of morphological operations."""
-    # Skip spur removal and diagonal removal
-    
+    # # Spur removal: Remove single-pixel wide spurs (optional step)
+    # spur_se = morphology.disk(1)  # Small structuring element
+    # creekmask = morphology.binary_opening(creekmask, spur_se)
+
+    # # Diagonal removal: Thin out diagonal connections (optional step)
+    # diagonal_se = np.array([[1, 0, 1],
+    #                         [0, 1, 0],
+    #                         [1, 0, 1]])  # Diagonal structuring element
+    # creekmask = morphology.binary_erosion(creekmask, diagonal_se)
+
     # Create disk-shaped structuring element for smoothing
     se = morphology.disk(smoothing)
-    
     # Perform closing operation for gentle smoothing
     creekmask = morphology.binary_closing(creekmask, se)
-    
+
     # # Optional: Very mild opening to remove single-pixel protrusions
     # small_se = morphology.disk(1)
     # creekmask = morphology.binary_opening(creekmask, small_se)
-    
+
     return creekmask
 
 def repair_diagnostic(creekmask, filtersmall1, filterlarge1, connectivity, smoothing, filtersmall2, filterlarge2, hole_size_infill):
@@ -269,7 +508,7 @@ def repair_diagnostic(creekmask, filtersmall1, filterlarge1, connectivity, smoot
     titles.append("Original")
 
     # First bwareafilt
-    creekmask = bwareafilt(creekmask, [filtersmall1, filterlarge1], connectivity)
+    creekmask = bwareafilt_diagnostic(creekmask, [filtersmall1, filterlarge1], connectivity)
     stages.append(creekmask.copy())
     titles.append(f"After first bwareafilt ({filtersmall1}, {filterlarge1})")
 
@@ -279,12 +518,12 @@ def repair_diagnostic(creekmask, filtersmall1, filterlarge1, connectivity, smoot
     titles.append(f"After morphological operations (smoothing={smoothing})")
 
     # Second bwareafilt
-    creekmask = bwareafilt(creekmask, [filtersmall2, filterlarge2], connectivity)
+    creekmask = bwareafilt_diagnostic(creekmask, [filtersmall2, filterlarge2], connectivity)
     stages.append(creekmask.copy())
     titles.append(f"After second bwareafilt ({filtersmall2}, {filterlarge2})")
 
     # Fill small holes
-    creekmask = fill_small_holes(creekmask, hole_size_infill)
+    creekmask = fill_small_holes_diagnostic(creekmask, hole_size_infill)
     stages.append(creekmask.copy())
     titles.append(f"After fill_small_holes (hole_size_infill={hole_size_infill})")
 

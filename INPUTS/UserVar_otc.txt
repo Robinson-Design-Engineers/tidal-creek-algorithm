@@ -49,12 +49,12 @@ reconnect=0;							# Choose (1) to apply the secondary function "Reconnect" to r
 reconnectiondist=1;						# If "reconnect"=1, all unconnected creek segments larger than "noisethreshold" and no further than "reconnectiondist" from the largest element are reconnected to the creek system 
 ordermax=5;							# Maximum creek order (test 4 and correct if needed)		
 filtersmall1=500;						
-filterlarge1=1000000;						# the two filters remove small and large features from the reconnected creek mask during the Repair phase, before smoothing and infilling holes
+filterlarge1=10000000;						# the two filters remove small and large features from the reconnected creek mask during the Repair phase, before smoothing and infilling holes
 smoothing=4;							# smoothing function
 connectivity=8;							# connectivity is either 4 or 8 for the Repair phase
 holesizeinfill=1;						# maximum size of holes to be infilled in the Repair phase
 filtersmall2=700;
-filterlarge2=1000000;						# the two filters remove small and large features from the reconnected creek mask during the Repair phase, after smoothing and infilling holes
+filterlarge2=10000000;						# the two filters remove small and large features from the reconnected creek mask during the Repair phase, after smoothing and infilling holes
 
 
 
