@@ -4,7 +4,7 @@ from scipy import ndimage # type: ignore
 from scipy.ndimage import distance_transform_edt
 import matplotlib.pyplot as plt
 
-def analyze_skeleton(skeleton):
+def analyze_skeleton(skeleton,Z):
     # Define the 10 branch point kernels
     branch_kernels = [
         np.array([[0, 1, 0], [1, 0, 1], [0, 1, 0]]),
@@ -32,6 +32,10 @@ def analyze_skeleton(skeleton):
         np.array([[1, 1, 0], [1, 0, 0], [0, 0, 0]])
     ]
 
+    # Define a 2x2 kernel
+    square_kernel = np.array([[1, 1],
+                              [1, 1]])
+
     # Identify branch points using the 10 kernels
     B = np.zeros_like(skeleton, dtype=bool)
     for kernel in branch_kernels:
@@ -42,6 +46,19 @@ def analyze_skeleton(skeleton):
     for check_kernel in neighbor_check_kernels:
         check_result = ndimage.convolve(skeleton.astype(int), check_kernel, mode='constant', cval=0)
         B &= ~((check_result == 3) & skeleton)
+
+    # Find locations of 2x2 squares and take the pixel with lowest Z value as branch point
+    square_result = ndimage.convolve(skeleton.astype(int), square_kernel, mode='constant', cval=0)
+    square_locations = (square_result == 4)
+    square_indices = np.argwhere(square_locations)
+
+    for top_left in square_indices:
+        i, j = top_left
+        square_pixels = [(i, j), (i, j + 1), (i + 1, j), (i + 1, j + 1)]
+        Z_values = [Z[p] for p in square_pixels]
+        min_pixel_index = np.argmin(Z_values)
+        branch_pixel = square_pixels[min_pixel_index]
+        B[branch_pixel] = True
     
     # Identify endpoints
     end_kernel = np.array([[1, 1, 1],
@@ -150,7 +167,7 @@ def find_regional_minima(D):
     min_filtered = minimum_filter(D, size=3)
     return (D == min_filtered) & (D != np.inf)
 
-def process_junction_angles(skeleton, creek_mask, IDXBRANCH, SINUOUSLENGTH, SEGMENTS, fig_view=False):
+def process_junction_angles(skeleton, creek_mask, Z, IDXBRANCH, SINUOUSLENGTH, SEGMENTS, fig_view=False):
     """
     Calculate junction angles in creek skeleton.
     
@@ -172,7 +189,7 @@ def process_junction_angles(skeleton, creek_mask, IDXBRANCH, SINUOUSLENGTH, SEGM
     ANGLEORDER = np.zeros_like(IDXBRANCH, dtype=float)
     
     # Get branch points and endpoints
-    B, _, _ = analyze_skeleton(skeleton)
+    B, _, _ = analyze_skeleton(skeleton, Z)
     
     # Setup visualization if needed
     if fig_view:
@@ -317,7 +334,7 @@ def process_junction_angles(skeleton, creek_mask, IDXBRANCH, SINUOUSLENGTH, SEGM
     
     return ANGLEORDER
 
-def process_junction_angles_diagnostic(skeleton, creek_mask, IDXBRANCH, SINUOUSLENGTH, SEGMENTS, fig_view=False):
+def process_junction_angles_diagnostic(skeleton, creek_mask, Z, IDXBRANCH, SINUOUSLENGTH, SEGMENTS, fig_view=False):
     """
     Calculate junction angles in creek skeleton.
     
@@ -344,7 +361,7 @@ def process_junction_angles_diagnostic(skeleton, creek_mask, IDXBRANCH, SINUOUSL
     print(f"Initial ANGLEORDER shape: {ANGLEORDER.shape}")
     
     # Get branch points and endpoints
-    B, _, _ = analyze_skeleton(skeleton)
+    B, _, _ = analyze_skeleton(skeleton, Z)
     print(f"Number of branch points found: {np.count_nonzero(B)}")
     
     # Setup visualization if needed

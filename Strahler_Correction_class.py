@@ -76,58 +76,6 @@ class CreekNetworkAnalyzer:
         for _ in range(iterations):
             result = dilation(result, disk(1))
         return result
-    
-    def analyze_skeleton(self, skeleton):
-        # Define the 10 branch point kernels
-        branch_kernels = [
-            np.array([[0, 1, 0], [1, 0, 1], [0, 1, 0]]),
-            np.array([[1, 0, 1], [0, 0, 0], [1, 0, 1]]),
-            np.array([[0, 1, 0], [1, 0, 0], [0, 0, 1]]),
-            np.array([[0, 1, 0], [0, 0, 1], [1, 0, 0]]),
-            np.array([[1, 0, 0], [0, 0, 1], [0, 1, 0]]),
-            np.array([[0, 0, 1], [1, 0, 0], [0, 1, 0]]),
-            np.array([[1, 0, 1], [0, 0, 0], [0, 1, 0]]),
-            np.array([[0, 0, 1], [1, 0, 0], [0, 0, 1]]),
-            np.array([[0, 1, 0], [0, 0, 0], [1, 0, 1]]),
-            np.array([[1, 0, 0], [0, 0, 1], [1, 0, 0]])
-        ]
-
-        # Define the neighbor check kernels
-        neighbor_check_kernels = [
-            np.array([[1, 1, 1], [0, 0, 0], [0, 0, 0]]),
-            np.array([[0, 0, 1], [0, 0, 1], [0, 0, 1]]),
-            np.array([[0, 0, 0], [0, 0, 0], [1, 1, 1]]),
-            np.array([[1, 0, 0], [1, 0, 0], [1, 0, 0]]),
-            np.array([[1, 1, 0], [1, 0, 0], [0, 0, 0]]),
-            np.array([[0, 1, 1], [0, 0, 1], [0, 0, 0]]),
-            np.array([[0, 0, 0], [0, 0, 1], [0, 1, 1]]),
-            np.array([[0, 0, 0], [1, 0, 0], [1, 1, 0]]),
-            np.array([[1, 1, 0], [1, 0, 0], [0, 0, 0]])
-        ]
-
-        # Identify branch points using the 10 kernels
-        B = np.zeros_like(skeleton, dtype=bool)
-        for kernel in branch_kernels:
-            conv_result = ndimage.convolve(skeleton.astype(int), kernel, mode='constant', cval=0)
-            B |= (conv_result >= 3) & skeleton
-
-        # Exclude points that match the neighbor check kernels
-        for check_kernel in neighbor_check_kernels:
-            check_result = ndimage.convolve(skeleton.astype(int), check_kernel, mode='constant', cval=0)
-            B &= ~((check_result == 3) & skeleton)
-        
-        # Identify endpoints
-        end_kernel = np.array([[1, 1, 1],
-                            [1, 0, 1],
-                            [1, 1, 1]])
-        E_neighbor_count = ndimage.convolve(skeleton.astype(int), end_kernel, mode='constant', cval=0) 
-        # E = (E_neighbor_count == 1) & skeleton  # Endpoints have exactly 1 neighbor
-        E = ((E_neighbor_count == 1) | (E_neighbor_count == 0)) & skeleton # Endpoints have exactly 1 neighbor or are isolated points
-
-        # Combine branch points and endpoints
-        PTS = B | E
-
-        return B, E, PTS
 
     def create_correction_gui(self):
         # 6.2 in MATLAB CHIROL_CREEK_ALGORITHM_2024.m -SamK
@@ -425,9 +373,6 @@ class CreekNetworkAnalyzer:
                 colind = np.max(np.where(self.STRAHLER[order, :] != 0)[0]) + 1
             else:
                 colind = 0
-                
-            # # Find branch points - doesn't seem needed -SamK
-            # B, E, PTS = analyze_skeleton(self.skeleton)
             
             # Get coordinates of corrected segment
             CORRIDX_k = self.corr_idx[k]
