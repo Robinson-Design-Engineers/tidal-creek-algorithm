@@ -6,6 +6,8 @@ from scipy.ndimage import distance_transform_edt # type: ignore
 from skimage.morphology import dilation, disk # type: ignore
 import networkx as nx # type: ignore
 from scipy.spatial.transform import Rotation # type: ignore
+from skimage.graph import route_through_array
+from scipy.ndimage import binary_dilation
 
 def analyze_skeleton(skeleton,Z):
     # Define the 10 branch point kernels
@@ -148,915 +150,10 @@ def figure_creek_skeleton_diagnostic(skeleton, x_poi, y_poi, Z):
     plt.tight_layout()
     plt.show()
 
-def process_creek_ordering(ordermax, Z, skeleton, outletdetection, nbbreaches):
-    
-    # Automatically detect one or several outlets (deepest end points in the skeleton)
-    if outletdetection == 1:
-        idxbreach, xbreach, ybreach, skeleton_breached = process_outlet_detection(Z, skeleton, nbbreaches)
-    else:
-        idxbreach, xbreach, ybreach, skeleton_breached = [], [], [], []
 
-    # resave skeleton as breached skeleton to ensure outlet point is connected to skeleton
-    skeleton = skeleton_breached # added to debug -SamK
+def process_creek_ordering(ordermax, Z, skeleton, outletdetection, nbbreaches): # for debugging
+    return STRAHLER, STRAIGHTDIST, IDXSEG, IDXBRANCH, idxbreach, xbreach, ybreach, skeleton_breached, creekorder, creekordersing, PTS, ID
 
-    # Initialize variables
-    B, E, PTS = analyze_skeleton(skeleton, Z)
-    all_pts = PTS
-    STRAHLER = np.zeros_like(E, dtype=float) # contains sinous length
-    STRAIGHTDIST = np.zeros_like(E, dtype=float) # contains straight length
-    IDXSEG = np.zeros((skeleton.shape[0], 6)) # contains coordinates of the normal vector (end and mid points)
-    IDXBRANCH = np.zeros_like(skeleton, dtype=int) # contains indices of all branch points
-    # IDXBRANCH = np.zeros_like(skeleton, dtype=[('row', int), ('col', int)])
-    creekorder = np.zeros_like(skeleton, dtype=int)
-    creekordersing = np.zeros_like(skeleton, dtype=int)
-    skeleton_chopped = skeleton # we keep skeleton intact and remove segments from skeleton_chopped
-    ID = []
-    i = 1
-    limit = 3
-
-    # Get the Strahler order and segment lengths in a loop
-    i_check = 1
-    max_iterations = 1000  # Failsafe to prevent infinite loop
-    skelprev = np.zeros_like(skeleton_chopped, dtype=bool)
-    
-    # while loop 1 out of 4
-    while np.any(E) and not np.array_equal(skelprev, skeleton_chopped) and i_check<= max_iterations: # and i < ordermax - this last condition was commented out in AnnaM's MATLAB code -SamK
-
-        # # Find entry channels, write them as branch points
-        # # E.ravel()[idxbreach] = False # ravel flattens a 2D array
-        # # B.ravel()[idxbreach] = True
-        # Add breach point as branch point
-        B[ybreach, xbreach] = True
-        E[ybreach, xbreach] = False
-       
-        # start segment selection from end points
-        # Find the locations of all branch and end points in the order i configuration
-        B_loc = np.argwhere(B) # np.argwhere returns a 2D array of coordinates
-        E_loc = np.argwhere(E)
-        Dmask = np.zeros_like(skeleton_chopped, dtype=bool)
-        col = 0 # starting column index for normal vector coordinate in IDXSEG
-        coords = np.argwhere(E)
-        y, x = coords[:, 0], coords[:, 1]
-        
-        for k in range(len(x)):
-            # remove the selected kth end point from E_loc
-            E_loctemp = np.delete(E_loc, k, axis=0) # assume E_loc is 2D array
-            
-            # Get distances from each pixel to kth end point
-            DD = calculate_geodesic_distance(skeleton_chopped, y[k], x[k])
-            
-            # Retrieve distance from kth point to nearest branch point, using DD values
-            branch_distances = DD[B_loc[:, 0], B_loc[:, 1]]
-            finite_branch_distances = branch_distances[np.isfinite(branch_distances)]
-            # have a check to make sure there are actual values
-            try:
-                distanceToBranchPt = np.min(finite_branch_distances).astype(float)
-            except ValueError:
-                distanceToBranchPt = np.inf  # or another appropriate value
-
-            # Retrieve distance from kth point to nearest end point other than itself, using DD values
-            end_distances = DD[E_loctemp[:, 0], E_loctemp[:, 1]]
-            finite_end_distances = end_distances[np.isfinite(end_distances)]
-            # have a check to make sure there are actual values
-            try:
-                distanceToEndPt = np.min(finite_end_distances).astype(float)
-            except ValueError:
-                distanceToEndPt = np.inf  # or another appropriate value
-            
-            # Three possibilities here: the end point we have detected can be:
-            # 1) an isolated point (no creek segment to detect)
-            # 2) an isolated creek segment delimited by two end points
-            # 3) a creek segment delimited by a branch point and an end point
-
-            # Remove isolated points (no creek segment to detect)
-            if np.isinf(distanceToEndPt) and np.isinf(distanceToBranchPt):
-                # Remove the point from skeleton_chopped
-                skeleton_chopped[y[k], x[k]] = False
-                # Remove point from endpoint array E
-                E[y[k], x[k]] = False
-                
-                # Continue to next point in the original coords list
-                continue
-            
-            # Find isolated segment (end point closer than branch point) - I guess like a vernal pool? -SamK
-            elif np.isfinite(distanceToEndPt) and np.isfinite(distanceToBranchPt) and distanceToEndPt < distanceToBranchPt:
-                # Store segment real length into strahler table
-                STRAHLER[i,k] = distanceToEndPt
-
-                # Find coordinates of the closest endpoint
-                ptlocy, ptlocx = np.where(DD==distanceToEndPt)
-                ptloc = np.where(DD==distanceToEndPt)
-                ptloc = ptloc[0]
-                ptlocx = ptlocx[0]
-                ptlocy = ptlocy[0]
-                # # alternate:
-                # E_loc_distances = DD[E_loctemp[:, 0], E_loctemp[:, 1]]
-                # finite_distances = E_loc_distances[np.isfinite(end_distances)]
-                # # Add check for empty array
-                # if finite_distances.size == 0:
-                #     # No valid distances found, skip this point
-                #     continue
-                # ptlocy, ptlocx = np.where(DD==np.min(finite_distances))
-
-                # Find segment straight length
-                # "Create empty image with only two points" - this is the MATLAB comment, but it seems they only create one point - SamK
-                skeletoneucl = np.zeros_like(skeleton_chopped)
-                skeletoneucl[E_loc[k,0], E_loc[k,1]] = 1
-                euclD = ndimage.distance_transform_edt(skeletoneucl == 0) # for each pixel, euclidean dist to nearest non-zero value 
-                disttopt = euclD[ptlocy, ptlocx]
-                STRAIGHTDIST[i,k] = disttopt
-                # Save index of branch point for junction angle assignment
-                if np.isscalar(ptlocx) and np.isscalar(ptlocy):
-                    # If they're already scalars
-                    ptloc_linear = np.ravel_multi_index((ptlocy, ptlocx), DD.shape)
-                else:
-                    # If they're arrays
-                    ptloc_linear = np.ravel_multi_index((ptlocy[0], ptlocx[0]), DD.shape)
-                IDXBRANCH[i,k] = ptloc_linear
-
-                # Create normal vectors to each segment and store their coordinates
-                # should it be y[k], x[k] or x[k], y[k]? -SamK
-                x1, y1, x2, y2, x3, y3, _, _ = normal_coord(DD, distanceToEndPt, y[k], x[k], limit)
-                
-                if col < IDXSEG.shape[1]:
-                    IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
-                else:
-                    new_values = [x1, y1, x2, y2, x3, y3]
-                    IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
-                    IDXSEG[i, -6:] = new_values
-                
-                col += 6
-
-                # Prepare to remove the segments order i
-                Dmask[DD < distanceToEndPt] = True
-
-            # Find isolated segment (branch point doesn't exist)
-            # seems exact same as if distanceToEndPt < distanceToBranchPt, except 
-            # uses normal_coord function on x[k], y[k] rather than y[k], x[k] as above -SamK
-            elif np.isinf(distanceToBranchPt) and np.isfinite(distanceToEndPt):
-                # Store segment real length into strahler table
-                STRAHLER[i,k] = distanceToEndPt
-
-                # Find coordinates of the closest endpoint
-                ptlocy, ptlocx = np.where(DD==distanceToEndPt)
-                ptloc = np.where(DD==distanceToEndPt)
-                ptloc = ptloc[0]
-                ptlocx = ptlocx[0]
-                ptlocy = ptlocy[0]
-                # # alternate:
-                # E_loc_distances = DD[E_loctemp[:, 0], E_loctemp[:, 1]]
-                # finite_distances = E_loc_distances[np.isfinite(end_distances)]
-                # # Add check for empty array
-                # if finite_distances.size == 0:
-                #     # No valid distances found, skip this point
-                #     continue
-                # ptlocy, ptlocx = np.where(DD==np.min(finite_distances))
-
-                # Find segment straight length
-                # "Create empty image with only two points" - this is the MATLAB comment, but it seems they only create one point - SamK
-                skeletoneucl = np.zeros_like(skeleton_chopped)
-                skeletoneucl[E_loc[k,0], E_loc[k,1]] = 1
-                euclD = ndimage.distance_transform_edt(skeletoneucl == 0) # for each pixel, euclidean dist to nearest non-zero value 
-                disttopt = euclD[ptlocy, ptlocx]
-                STRAIGHTDIST[i,k] = disttopt
-                # Save index of branch point for junction angle assignment
-                if np.isscalar(ptlocx) and np.isscalar(ptlocy):
-                    # If they're already scalars
-                    ptloc_linear = np.ravel_multi_index((ptlocy, ptlocx), DD.shape)
-                else:
-                    # If they're arrays
-                    ptloc_linear = np.ravel_multi_index((ptlocy[0], ptlocx[0]), DD.shape)
-                IDXBRANCH[i,k] = ptloc_linear
-
-                # Create normal vectors to each segment and store their coordinates
-                x1, y1, x2, y2, x3, y3, _, _ = normal_coord(DD, distanceToEndPt, x[k], y[k], limit)
-                
-                if col < IDXSEG.shape[1]:
-                    IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
-                else:
-                    new_values = [x1, y1, x2, y2, x3, y3]
-                    IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
-                    IDXSEG[i, -6:] = new_values
-
-                col += 6
-
-                # Prepare to remove the segments order i
-                Dmask[DD < distanceToEndPt] = True
-
-            # Find connected segment (detect closest branch point)
-            else:
-                # Store segment real length into strahler table
-                STRAHLER[i,k] = distanceToBranchPt
-
-                ptlocy, ptlocx = np.where(DD==distanceToBranchPt)
-                ptloc = np.where(DD==distanceToBranchPt)
-                ptloc = ptloc[0]
-                ptlocx = ptlocx[0]
-                ptlocy = ptlocy[0]
-
-                # Find segment straight length
-                # "Create empty image with only two points" - this is the MATLAB comment, but it seems they only create one point - SamK
-                skeletoneucl = np.zeros_like(skeleton_chopped)
-                skeletoneucl[E_loc[k,0], E_loc[k,1]] = 1
-                euclD = ndimage.distance_transform_edt(skeletoneucl == 0) # for each pixel, euclidean dist to nearest non-zero value 
-                disttopt = euclD[ptlocy, ptlocx]
-                STRAIGHTDIST[i,k] = disttopt
-                # Save index of branch point for junction angle assignment
-                if np.isscalar(ptlocx) and np.isscalar(ptlocy):
-                    # If they're already scalars
-                    ptloc_linear = np.ravel_multi_index((ptlocy, ptlocx), DD.shape)
-                else:
-                    # If they're arrays
-                    ptloc_linear = np.ravel_multi_index((ptlocy[0], ptlocx[0]), DD.shape)
-                IDXBRANCH[i,k] = ptloc_linear
-
-                # Create normal vectors to each segment and store their coordinates
-                # should it be y[k], x[k] or x[k], y[k]? -SamK
-                x1, y1, x2, y2, x3, y3, _, _ = normal_coord(DD, distanceToBranchPt, x[k], y[k], limit)
-                
-                if col < IDXSEG.shape[1]:
-                    IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
-                else:
-                    new_values = [x1, y1, x2, y2, x3, y3]
-                    IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
-                    IDXSEG[i, -6:] = new_values
-
-                col += 6
-
-                # Prepare to remove the segments order i
-                Dmask[DD < distanceToBranchPt] = True
-
-
-        # Prepare the creek order plot
-        creekordermask = bwmorph_diag(Dmask)
-        # Assign creek orders
-        creekordersing[creekordermask != 0] = creekordermask[creekordermask != 0] * i
-        # Thicken the mask i times
-        # creekordermask = bwmorph_thicken(creekordermask, i)
-        creekordermask = dilation(creekordermask, disk(1))
-        # Assign creek orders to thickened mask
-        creekorder[creekordermask != 0] = creekordermask[creekordermask != 0] * i
-        # Clear the mask
-        del creekordermask
-
-        # Remove order i segments
-        # skelD = skeleton_chopped - Dmask # subtract matrices
-        skelD = np.logical_xor(skeleton_chopped, Dmask) # or use skelD = skeleton_chopped ^ Dmask
-        skeleton_chopped = skelD.astype(bool) # convert to boolean/logical, could also do skelchopped = skelD > 0 -SamK
-
-        # Redo skeleton
-        skeleton_chopped = morphology.skeletonize(skeleton_chopped)
-        ID = np.append(ID, i) # update order tracking
-
-        # Find the end and branch points of the order i+1 network configuration
-        i += 1 # Store order number and move on to the next creek order until skeleton contains only 0
-        col = 0
-        B, E, PTS = analyze_skeleton(skeleton_chopped, Z)
-        # Update breach points
-        E.ravel()[idxbreach] = False
-        B.ravel()[idxbreach] = True
-
-        i_check += 1
-        if i_check >= max_iterations:
-            print("Max iterations reached, breaking out of the loop.")
-            break
-
-    if i == ordermax:
-        ID = np.append(ID, i)
-    else:
-        i = ordermax
-        ID = np.arange(1, ordermax + 1)  # Create array from 1 to ordermax
-
-    # Segment assignation has occured until no more end points are detected. 
-    # We do a second one that also detects the outlets.
-    # Segment assignation for outlets
-    skelprev = np.zeros_like(skeleton, dtype=bool)
-    B, E, PTS = analyze_skeleton(skeleton_chopped, Z)
-    ESIZE = np.any(E) # doesn't seem to be used later -SamK
-    test = 1
-
-    i_check = 1
-
-    # while loop 2 out of 4 - outlets
-    # ensure there are endpoints and that skelprev and skeleton_chopped are not identical
-    while np.any(E) and not np.array_equal(skelprev, skeleton_chopped) and i_check<= max_iterations:
-        test = test + 1
-
-        # Find the locations of all branch and end points in the order i configuration
-        B_loc = np.argwhere(B) # np.argwhere returns a 2D array of coordinates
-        E_loc = np.argwhere(E)
-        Dmask = np.zeros_like(skeleton_chopped, dtype=bool)
-        # col = 0
-        coords = np.argwhere(E)
-        y, x = coords[:, 0], coords[:, 1]
-        
-        # Loop through each end point in order i configuration
-        for k2 in range(len(x)):
-            k = k + 1
-
-            # Remove selected end point from E_loc
-            E_loctemp = np.delete(E_loc, k2, axis=0) # assume E_loc is 2D array
-
-            # get quasi-euclidean distance from selected end point to the rest of the creek network and find closest branch or end point
-            # Get distances to kth end point
-            DD = calculate_geodesic_distance(skeleton_chopped, y[k2], x[k2])
-            
-            # Retrieve distance from kth point to nearest branch point, using DD values
-            branch_distances = DD[B_loc[:, 0], B_loc[:, 1]]
-            finite_branch_distances = branch_distances[np.isfinite(branch_distances)]
-            # have a check to make sure there are actual values
-            try:
-                distanceToBranchPt = np.min(finite_branch_distances).astype(float)
-            except ValueError:
-                distanceToBranchPt = np.inf  # or another appropriate value
-
-            # Retrieve distance from kth point to nearest end point other than itself, using DD values
-            end_distances = DD[E_loctemp[:, 0], E_loctemp[:, 1]]
-            finite_end_distances = end_distances[np.isfinite(end_distances)]
-            # have a check to make sure there are actual values
-            try:
-                distanceToEndPt = np.min(finite_end_distances).astype(float)
-            except ValueError:
-                distanceToEndPt = np.inf  # or another appropriate value
-            
-            # Three possibilities here: the end point we have detected can be:
-            # 1) an isolated point (no creek segment to detect)
-            # 2) an isolated creek segment delimited by two end points
-            # 3) a creek segment delimited by a branch point and an end point
-
-            # Remove isolated points (no creek segment to detect)
-            if np.isinf(distanceToEndPt) and np.isinf(distanceToBranchPt):
-                # Remove the point from skeleton_chopped
-                skeleton_chopped[y[k2], x[k2]] = False
-                # Remove point from endpoint array E
-                E[y[k2], x[k2]] = False
-                
-                # Continue to next point in the original coords list
-                continue
-            
-            # Find isolated segment (end point closer than branch point) - I guess like a vernal pool? -SamK
-            elif np.isfinite(distanceToEndPt) and np.isfinite(distanceToBranchPt) and distanceToEndPt < distanceToBranchPt:
-                # Store segment real length into strahler table
-                STRAHLER[i,k] = distanceToEndPt
-
-                # Find coordinates of the closest endpoint
-                ptlocy, ptlocx = np.where(DD==distanceToEndPt)
-                ptloc = np.where(DD==distanceToEndPt)
-                ptloc = ptloc[0]
-                ptlocx = ptlocx[0]
-                ptlocy = ptlocy[0]
-                # # alternate:
-                # E_loc_distances = DD[E_loctemp[:, 0], E_loctemp[:, 1]]
-                # finite_distances = E_loc_distances[np.isfinite(end_distances)]
-                # # Add check for empty array
-                # if finite_distances.size == 0:
-                #     # No valid distances found, skip this point
-                #     continue
-                # ptlocy, ptlocx = np.where(DD==np.min(finite_distances))
-
-                # Find segment straight length
-                # "Create empty image with only two points" - this is the MATLAB comment, but it seems they only create one point - SamK
-                skeletoneucl = np.zeros_like(skeleton_chopped)
-                skeletoneucl[E_loc[k2,0], E_loc[k2,1]] = 1
-                euclD = ndimage.distance_transform_edt(skeletoneucl == 0) # for each pixel, euclidean dist to nearest non-zero value 
-                disttopt = euclD[ptlocy, ptlocx]
-                STRAIGHTDIST[i,k] = disttopt
-                # Save index of branch point for junction angle assignment
-                if np.isscalar(ptlocx) and np.isscalar(ptlocy):
-                    # If they're already scalars
-                    ptloc_linear = np.ravel_multi_index((ptlocy, ptlocx), DD.shape)
-                else:
-                    # If they're arrays
-                    ptloc_linear = np.ravel_multi_index((ptlocy[0], ptlocx[0]), DD.shape)
-                IDXBRANCH[i,k] = ptloc_linear
-
-                # Create normal vectors to each segment and store their coordinates
-                # should it be y[k2], x[k2] or x[k2], y[k2]? -SamK
-                x1, y1, x2, y2, x3, y3, _, _ = normal_coord(DD, distanceToEndPt, y[k2], x[k2], limit)
-                
-                if col < IDXSEG.shape[1]:
-                    IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
-                else:
-                    new_values = [x1, y1, x2, y2, x3, y3]
-                    IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
-                    IDXSEG[i, -6:] = new_values
-
-                col += 6
-
-                # Prepare to remove the segments order i
-                Dmask[DD < distanceToEndPt] = True
-
-            # Find isolated segment (branch point doesn't exist)
-            # seems exact same as if distanceToEndPt < distanceToBranchPt, except 
-            # uses normal_coord function on x[k], y[k] rather than y[k], x[k] as above -SamK
-            elif np.isinf(distanceToBranchPt) and np.isfinite(distanceToEndPt):
-                # Store segment real length into strahler table
-                STRAHLER[i,k] = distanceToEndPt
-
-                # Find coordinates of the closest endpoint
-                ptlocy, ptlocx = np.where(DD==distanceToEndPt)
-                ptloc = np.where(DD==distanceToEndPt)
-                ptloc = ptloc[0]
-                ptlocx = ptlocx[0]
-                ptlocy = ptlocy[0]
-                # # alternate:
-                # E_loc_distances = DD[E_loctemp[:, 0], E_loctemp[:, 1]]
-                # finite_distances = E_loc_distances[np.isfinite(end_distances)]
-                # # Add check for empty array
-                # if finite_distances.size == 0:
-                #     # No valid distances found, skip this point
-                #     continue
-                # ptlocy, ptlocx = np.where(DD==np.min(finite_distances))
-
-                # Find segment straight length
-                # "Create empty image with only two points" - this is the MATLAB comment, but it seems they only create one point - SamK
-                skeletoneucl = np.zeros_like(skeleton_chopped)
-                skeletoneucl[E_loc[k2,0], E_loc[k2,1]] = 1
-                euclD = ndimage.distance_transform_edt(skeletoneucl == 0) # for each pixel, euclidean dist to nearest non-zero value 
-                disttopt = euclD[ptlocy, ptlocx]
-                STRAIGHTDIST[i,k] = disttopt
-                # Save index of branch point for junction angle assignment
-                if np.isscalar(ptlocx) and np.isscalar(ptlocy):
-                    # If they're already scalars
-                    ptloc_linear = np.ravel_multi_index((ptlocy, ptlocx), DD.shape)
-                else:
-                    # If they're arrays
-                    ptloc_linear = np.ravel_multi_index((ptlocy[0], ptlocx[0]), DD.shape)
-                IDXBRANCH[i,k] = ptloc_linear
-
-                # Create normal vectors to each segment and store their coordinates
-                x1, y1, x2, y2, x3, y3, _, _ = normal_coord(DD, distanceToEndPt, x[k2], y[k2], limit)
-                
-                if col < IDXSEG.shape[1]:
-                    IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
-                else:
-                    new_values = [x1, y1, x2, y2, x3, y3]
-                    IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
-                    IDXSEG[i, -6:] = new_values
-
-                col += 6
-
-                # Prepare to remove the segments order i
-                Dmask[DD < distanceToEndPt] = True
-
-            # Find connected segment (detect closest branch point)
-            else:
-                # Store segment real length into strahler table
-                STRAHLER[i,k] = distanceToBranchPt
-
-                ptlocy, ptlocx = np.where(DD==distanceToBranchPt)
-                ptloc = np.where(DD==distanceToBranchPt)
-                ptloc = ptloc[0]
-                ptlocx = ptlocx[0]
-                ptlocy = ptlocy[0]
-
-                # Find segment straight length
-                # "Create empty image with only two points" - this is the MATLAB comment, but it seems they only create one point - SamK
-                skeletoneucl = np.zeros_like(skeleton_chopped)
-                skeletoneucl[E_loc[k2,0], E_loc[k2,1]] = 1
-                euclD = ndimage.distance_transform_edt(skeletoneucl == 0) # for each pixel, euclidean dist to nearest non-zero value 
-                disttopt = euclD[ptlocy, ptlocx]
-                STRAIGHTDIST[i,k] = disttopt
-                # Save index of branch point for junction angle assignment
-                if np.isscalar(ptlocx) and np.isscalar(ptlocy):
-                    # If they're already scalars
-                    ptloc_linear = np.ravel_multi_index((ptlocy, ptlocx), DD.shape)
-                else:
-                    # If they're arrays
-                    ptloc_linear = np.ravel_multi_index((ptlocy[0], ptlocx[0]), DD.shape)
-                IDXBRANCH[i,k] = ptloc_linear
-
-                # Create normal vectors to each segment and store their coordinates
-                # should it be y[k], x[k] or x[k], y[k]? -SamK
-                x1, y1, x2, y2, x3, y3, _, _ = normal_coord(DD, distanceToBranchPt, x[k2], y[k2], limit)
-                
-                if col < IDXSEG.shape[1]:
-                    IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
-                else:
-                    new_values = [x1, y1, x2, y2, x3, y3]
-                    IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
-                    IDXSEG[i, -6:] = new_values
-
-                col += 6
-
-                # Prepare to remove the segments order i
-                Dmask[DD < distanceToBranchPt] = True
-
-        # Prepare the creek order plot
-        creekordermask = bwmorph_diag(Dmask)
-        # Assign creek orders
-        creekordersing[creekordermask != 0] = creekordermask[creekordermask != 0] * i
-        # Thicken the mask i times
-        # creekordermask = bwmorph_thicken(creekordermask, i)
-        creekordermask = dilation(creekordermask, disk(1))
-        # Assign creek orders to thickened mask
-        creekorder[creekordermask != 0] = creekordermask[creekordermask != 0] * i
-        # Clear the mask
-        del creekordermask
-
-        # Remove order i segments
-        # skelD = skeleton_chopped - Dmask # subtract matrices
-        skelD = np.logical_xor(skeleton_chopped, Dmask) # or use skelD = skeleton_chopped ^ Dmask
-        skeleton_chopped = skelD.astype(bool) # convert to boolean/logical, could also do skelchopped = skelD > 0 -SamK
-
-        # Redo skeleton
-        skeleton_chopped = morphology.skeletonize(skeleton_chopped)
-        # ID = np.append(ID, i) # update order tracking
-
-        # Find the end and branch points of the order i+1 network configuration
-        # i += 1 # Store order number and move on to the next creek order until skeleton contains only 0
-        # col = 0
-        B, E, PTS = analyze_skeleton(skeleton_chopped, Z)
-
-        i_check += 1
-        if i_check >= max_iterations:
-            print("Max iterations reached, breaking out of the loop.")
-            break
-    
-    # Outlet Segment assignation has occured until no more end points are detected. 
-    # We do a THIRD one that detects all branch points and gets interconnected sections.
-
-    skelprev = np.zeros_like(skeleton, dtype=bool)
-    B, E, PTS = analyze_skeleton(skeleton_chopped, Z)
-    B[E != 0] = True # could also do: B[np.where(E)] = True -SamK
-    # # Update breach points
-    # E.ravel()[idxbreach] = False
-    # B.ravel()[idxbreach] = True
-
-    # Figure - not translated as of now, commented out in AnnaM's MATLAB code -SamK
-
-    i_check = 1
-
-    # while loop 3 out of 4 - branch points / interconnected segments
-    while np.any(B) and i_check<= max_iterations:
-        # Select 1 node
-        k2 = 1
-
-        # Find the locations of all branch and end points in the order i configuration
-        B_loc = np.argwhere(B) # np.argwhere returns a 2D array of coordinates
-        # E_loc = np.argwhere(E)
-        Dmask = np.zeros_like(skeleton_chopped, dtype=bool)
-        # col = 0
-        coords = np.argwhere(B) # different than being based on E in first two while loops -SamK
-        y, x = coords[:, 0], coords[:, 1]
-
-        # "Plot the order i configuration" and "Check for interconnections" commented out in AnnaM's MATLAB code -SamK
-        
-        # for k2 in range(len(x)): # commented out in AnnaM's MATLAB code -SamK
-        k = k+1
-
-        # remove the selected kth end point from E_loc
-        E_loctemp = np.delete(E_loc, k2, axis=0) # assume E_loc is 2D array
-        B_loctemp = np.delete(B_loc, k2, axis=0) # assume B_loc is 2D array
-
-        y2 = x
-        x = y
-        y = y2
-
-        # get quasi-euclidean distance from selected end point to the 
-        # rest of the creek network and find closest branch or end point
-        # Get distances
-        DD = calculate_geodesic_distance(skeleton_chopped, y[k2], x[k2]) 
-        # commented out figure -SamK
-            
-        # Retrieve distance from kth point to nearest branch point, using DD values
-        branch_distances = DD[B_loctemp[:, 0], B_loctemp[:, 1]]
-        finite_branch_distances = branch_distances[np.isfinite(branch_distances)]
-        # have a check to make sure there are actual values
-        try:
-            distanceToBranchPt = np.min(finite_branch_distances).astype(float)
-        except ValueError:
-            distanceToBranchPt = np.inf  # or another appropriate value
-
-        # Retrieve distance from kth point to nearest end point other than itself, using DD values
-        end_distances = DD[E_loctemp[:, 0], E_loctemp[:, 1]]
-        finite_end_distances = end_distances[np.isfinite(end_distances)]
-        # have a check to make sure there are actual values
-        try:
-            distanceToEndPt = np.min(finite_end_distances).astype(float)
-        except ValueError:
-            distanceToEndPt = np.inf  # or another appropriate value
-            
-        # Three possibilities here: the end point we have detected can be:
-        # 1) an isolated point (no creek segment to detect)
-        # 2) an isolated creek segment delimited by two end points
-        # 3) a creek segment delimited by a branch point and an end point
-
-        # Remove isolated points (no creek segment to detect)
-        if np.isinf(distanceToEndPt) and np.isinf(distanceToBranchPt):
-            # Remove the point from skeleton_chopped
-            skeleton_chopped[y[k2], x[k2]] = False
-            # Remove point from endpoint array E
-            E[y[k2], x[k2]] = False
-            
-            # Continue to next point in the original coords list
-            continue
-        
-        # Find isolated segment (end point closer than branch point) - I guess like a vernal pool? -SamK
-        elif np.isfinite(distanceToEndPt) and np.isfinite(distanceToBranchPt) and distanceToEndPt < distanceToBranchPt:
-            # Store segment real length into strahler table
-            STRAHLER[i,k] = distanceToEndPt
-
-            # Find coordinates of the closest endpoint
-            ptlocy, ptlocx = np.where(DD==distanceToEndPt)
-            ptloc = np.where(DD==distanceToEndPt)
-            ptloc = ptloc[0]
-            ptlocx = ptlocx[0]
-            ptlocy = ptlocy[0]
-            # # alternate:
-            # E_loc_distances = DD[E_loctemp[:, 0], E_loctemp[:, 1]]
-            # finite_distances = E_loc_distances[np.isfinite(end_distances)]
-            # # Add check for empty array
-            # if finite_distances.size == 0:
-            #     # No valid distances found, skip this point
-            #     continue
-            # ptlocy, ptlocx = np.where(DD==np.min(finite_distances))
-
-            # Find segment straight length
-            # "Create empty image with only two points" - this is the MATLAB comment, but it seems they only create one point - SamK
-            skeletoneucl = np.zeros_like(skeleton_chopped)
-            skeletoneucl[B_loc[k2,0], B_loc[k2,1]] = 1
-            euclD = ndimage.distance_transform_edt(skeletoneucl == 0) # for each pixel, euclidean dist to nearest non-zero value 
-            disttopt = euclD[ptlocy, ptlocx]
-            STRAIGHTDIST[i,k] = disttopt
-            # Save index of branch point for junction angle assignment
-            if np.isscalar(ptlocx) and np.isscalar(ptlocy):
-                # If they're already scalars
-                ptloc_linear = np.ravel_multi_index((ptlocy, ptlocx), DD.shape)
-            else:
-                # If they're arrays
-                ptloc_linear = np.ravel_multi_index((ptlocy[0], ptlocx[0]), DD.shape)
-            IDXBRANCH[i,k] = ptloc_linear
-
-            # Create normal vectors to each segment and store their coordinates
-            x1, y1, x2, y2, x3, y3, BWrem = normal_coord_test(DD, distanceToEndPt, x[k2], y[k2], limit, skeleton_chopped, B_loctemp)
-            
-            if col < IDXSEG.shape[1]:
-                    IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
-            else:
-                new_values = [x1, y1, x2, y2, x3, y3]
-                IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
-                IDXSEG[i, -6:] = new_values
-
-            col += 6
-
-            # Prepare to remove the segments order i
-            # Dmask[DD < distanceToEndPt] = True
-            Dmask=BWrem
-
-        # Find isolated segment (branch point doesn't exist)
-        # seems exact same as if distanceToEndPt < distanceToBranchPt, except 
-        # uses normal_coord function on x[k], y[k] rather than y[k], x[k] as above -SamK
-        elif np.isinf(distanceToBranchPt) and np.isfinite(distanceToEndPt):
-            # Store segment real length into strahler table
-            STRAHLER[i,k] = distanceToEndPt
-
-            # Find coordinates of the closest endpoint
-            ptlocy, ptlocx = np.where(DD==distanceToEndPt)
-            ptloc = np.where(DD==distanceToEndPt)
-            ptloc = ptloc[0]
-            ptlocx = ptlocx[0]
-            ptlocy = ptlocy[0]
-            # # alternate:
-            # E_loc_distances = DD[E_loctemp[:, 0], E_loctemp[:, 1]]
-            # finite_distances = E_loc_distances[np.isfinite(end_distances)]
-            # # Add check for empty array
-            # if finite_distances.size == 0:
-            #     # No valid distances found, skip this point
-            #     continue
-            # ptlocy, ptlocx = np.where(DD==np.min(finite_distances))
-
-            # Find segment straight length
-            # "Create empty image with only two points" - this is the MATLAB comment, but it seems they only create one point - SamK
-            skeletoneucl = np.zeros_like(skeleton_chopped)
-            skeletoneucl[B_loc[k2,0], B_loc[k2,1]] = 1
-            euclD = ndimage.distance_transform_edt(skeletoneucl == 0) # for each pixel, euclidean dist to nearest non-zero value 
-            disttopt = euclD[ptlocy, ptlocx]
-            STRAIGHTDIST[i,k] = disttopt
-            # Save index of branch point for junction angle assignment
-            if np.isscalar(ptlocx) and np.isscalar(ptlocy):
-                # If they're already scalars
-                ptloc_linear = np.ravel_multi_index((ptlocy, ptlocx), DD.shape)
-            else:
-                # If they're arrays
-                ptloc_linear = np.ravel_multi_index((ptlocy[0], ptlocx[0]), DD.shape)
-            IDXBRANCH[i,k] = ptloc_linear
-
-            # Create normal vectors to each segment and store their coordinates
-            x1, y1, x2, y2, x3, y3, BWrem = normal_coord_test(DD, distanceToEndPt, x[k2], y[k2], limit, skeleton_chopped, B_loctemp)
-            
-            if col < IDXSEG.shape[1]:
-                    IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
-            else:
-                new_values = [x1, y1, x2, y2, x3, y3]
-                IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
-                IDXSEG[i, -6:] = new_values
-
-            col += 6
-
-            # Prepare to remove the segments order i
-            # Dmask[DD < distanceToEndPt] = True
-            Dmask=BWrem
-
-        # Find connected segment (detect closest branch point)
-        else:
-            # Store segment real length into strahler table
-            STRAHLER[i,k] = distanceToBranchPt
-
-            ptlocy, ptlocx = np.where(DD==distanceToBranchPt)
-            ptloc = np.where(DD==distanceToBranchPt)
-            ptloc = ptloc[0]
-            ptlocx = ptlocx[0]
-            ptlocy = ptlocy[0]
-
-            # Find segment straight length
-            # "Create empty image with only two points" - this is the MATLAB comment, but it seems they only create one point - SamK
-            skeletoneucl = np.zeros_like(skeleton_chopped)
-            skeletoneucl[B_loc[k2,0], B_loc[k2,1]] = 1
-            euclD = ndimage.distance_transform_edt(skeletoneucl == 0) # for each pixel, euclidean dist to nearest non-zero value 
-            disttopt = euclD[ptlocy, ptlocx]
-            STRAIGHTDIST[i,k] = disttopt
-            # Save index of branch point for junction angle assignment
-            if np.isscalar(ptlocx) and np.isscalar(ptlocy):
-                # If they're already scalars
-                ptloc_linear = np.ravel_multi_index((ptlocy, ptlocx), DD.shape)
-            else:
-                # If they're arrays
-                ptloc_linear = np.ravel_multi_index((ptlocy[0], ptlocx[0]), DD.shape)
-            IDXBRANCH[i,k] = ptloc_linear
-
-            # Create normal vectors to each segment and store their coordinates
-            x1, y1, x2, y2, x3, y3, BWrem = normal_coord_test(DD, distanceToBranchPt, x[k2], y[k2], limit, skeleton_chopped, B_loctemp)
-            
-            if col < IDXSEG.shape[1]:
-                    IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
-            else:
-                new_values = [x1, y1, x2, y2, x3, y3]
-                IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
-                IDXSEG[i, -6:] = new_values
-
-            col += 6
-
-            # Prepare to remove the segments order i
-            # Dmask[DD < distanceToBranchPt] = True
-            Dmask=BWrem
-
-
-        # Remove order i segments
-        # skelD = skeleton_chopped - Dmask # subtract matrices
-        skelD = np.logical_xor(skeleton_chopped, Dmask) # or use skelD = skeleton_chopped ^ Dmask
-        skeleton_chopped = skelD.astype(bool) # convert to boolean/logical, could also do skelchopped = skelD > 0 -SamK
-
-        # Prepare the creek order plot
-        creekordermask = bwmorph_diag(Dmask)
-        # Assign creek orders
-        creekordersing[creekordermask != 0] = creekordermask[creekordermask != 0] * i
-        # Thicken the mask i times
-        # creekordermask = bwmorph_thicken(creekordermask, i)
-        creekordermask = dilation(creekordermask, disk(1))
-        # Assign creek orders to thickened mask
-        creekorder[creekordermask != 0] = creekordermask[creekordermask != 0] * i
-        # Clear the mask
-        del creekordermask
-
-        # # Remove order i segments
-        # skelD = skeleton_chopped - Dmask # subtract matrices
-        # skelD = np.logical_xor(skeleton_chopped, Dmask) # or use skelD = skeleton_chopped ^ Dmask
-        # skeleton_chopped = skelD.astype(bool) # convert to boolean/logical, could also do skelchopped = skelD > 0 -SamK
-
-        # Redo skeleton
-        skeleton_chopped = morphology.skeletonize(skeleton_chopped)
-
-        # # Find the end and branch points of the order i+1 network configuration
-        # i += 1 # Store order number and move on to the next creek order until skeleton contains only 0
-        # col = 0
-        skeleton_chopped = bwmorph_clean(skeleton_chopped)
-        B, E, PTS = analyze_skeleton(skeleton_chopped, Z)
-        B = PTS
-
-        i_check += 1
-        if i_check >= max_iterations:
-            print("Max iterations reached, breaking out of the loop.")
-            break
-
-    # while loop 4 out of 4 - loop processing - but commented out while loop in AnnaM's MATLAB code
-    # so maybe we don't use a while loop, but let's see if we do -SamK
-    while np.any(skeleton_chopped) and i_check<= max_iterations:
-        # Process remaining loops with no nodes
-        # Prepare the creek order plot
-        creekordermask = bwmorph_diag(Dmask)
-        # Assign creek orders
-        creekordersing[creekordermask != 0] = creekordermask[creekordermask != 0] * i
-        # Thicken the mask i times
-        # creekordermask = bwmorph_thicken(creekordermask, i)
-        creekordermask = dilation(creekordermask, disk(1))
-        # Assign creek orders to thickened mask
-        creekorder[creekordermask != 0] = creekordermask[creekordermask != 0] * i
-        # Clear the mask
-        del creekordermask
-        # Get connected components
-        skelcomp = bwconncomp(skeleton_chopped)
-        # Get number of objects
-        idxnum = skelcomp['n_objects']
-        print('idxnum = ', idxnum)
-
-        if idxnum == 0:
-            # No more components to process
-            break
-
-
-        # Initialize temp arrays to store masks and distances
-        temp_masks = []
-        max_distances = []
-            
-        # Go through each remaining loop with no nodes
-        for iii in range(idxnum):
-            k = k + 1
-
-            # Get pixel indices for current component
-            idxlist = skelcomp['pixel_idx'][iii]
-            if not idxlist[0].size or not idxlist[1].size:
-                continue
-                
-            # Create mask for current component
-            loopmask = np.zeros_like(skeleton_chopped, dtype=bool)
-            loopmask[idxlist] = True
-
-            # Store total pixels in component 
-            sinuouslength = np.sum(loopmask, dtype=float)
-            
-            # Safely expand STRAHLER array if needed
-            if i >= STRAHLER.shape[0] or k >= STRAHLER.shape[1]:
-                new_rows = max(i + 1, STRAHLER.shape[0])
-                new_cols = max(k + 1, STRAHLER.shape[1])
-                STRAHLER_temp = np.zeros((new_rows, new_cols), dtype=float)  # Explicitly set dtype
-                STRAHLER_temp[:STRAHLER.shape[0], :STRAHLER.shape[1]] = STRAHLER
-                STRAHLER = STRAHLER_temp
-                
-            # Store length
-            STRAHLER[i,k] = sinuouslength
-
-            # Get coordinates of first point
-            y_first = idxlist[0][0]
-            x_first = idxlist[1][0]
-            
-            try:
-                # Calculate distances
-                DD = calculate_chessboard_distance(loopmask, y_first, x_first)
-                
-                # Find point furthest from first point
-                valid_distances = DD[np.isfinite(DD)]
-                if len(valid_distances) > 0:
-                    max_dist = np.max(valid_distances)
-                    y_far, x_far = np.where(DD == max_dist)
-                    if len(y_far) > 0 and len(x_far) > 0:
-                        y_far = y_far[0]
-                        x_far = x_far[0]
-                        
-                        # Calculate normal vectors
-                        try:
-                            x1, y1, x2, y2, x3, y3, BWrem = normal_coord_test(
-                                DD, sinuouslength, x_first, y_first, 
-                                limit, skeleton_chopped, (y_far, x_far)
-                            )
-
-                            if col < IDXSEG.shape[1]:
-                                IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
-                            else:
-                                new_values = [x1, y1, x2, y2, x3, y3]
-                                IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
-                                IDXSEG[i, -6:] = new_values
-
-                            col += 6
-
-                            # # Store coordinates if successful
-                            # if i < IDXSEG.shape[0]:
-                            #     IDXSEG[i, :] = [x1, y1, x2, y2, x3, y3]
-                        except Exception as e:
-                            print(f"Error calculating normal vectors: {str(e)}")
-                            continue
-                            
-                        # Remove processed component from skeleton
-                        skeleton_chopped[loopmask] = False
-                        skeleton_chopped = morphology.skeletonize(skeleton_chopped)
-
-            except Exception as e:
-                print(f"Error processing component {iii}: {str(e)}")
-                continue
-
-
-        i_check += 1
-        if i_check >= max_iterations:
-            print("Max iterations reached, breaking out of the loop.")
-            break
-    
-    # Convert lists to numpy arrays
-    STRAHLER = np.array(STRAHLER)
-    STRAIGHTDIST = np.array(STRAIGHTDIST)
-    IDXSEG = np.array(IDXSEG)
-    IDXBRANCH = np.array(IDXBRANCH)
-    
-    return STRAHLER, STRAIGHTDIST, IDXSEG, IDXBRANCH, idxbreach, xbreach, ybreach, skeleton_breached, creekorder, creekordersing, all_pts, ID
 
 
 def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nbbreaches): # for debugging
@@ -1068,7 +165,7 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
         idxbreach, xbreach, ybreach, skeleton_breached = [], [], [], []
 
     # resave skeleton as breached skeleton to ensure outlet point is connected to skeleton
-    skeleton = skeleton_breached # added to debug -SamK
+    skeleton = skeleton_breached.copy() # added to debug -SamK
 
     # Initialize variables
     B, E, PTS = analyze_skeleton(skeleton, Z)
@@ -1079,7 +176,7 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
     # IDXBRANCH = np.zeros_like(skeleton, dtype=[('row', int), ('col', int)])
     creekorder = np.zeros_like(skeleton, dtype=int)
     creekordersing = np.zeros_like(skeleton, dtype=int)
-    skeleton_chopped = skeleton # we keep skeleton intact and remove segments from skeleton_chopped
+    skeleton_chopped = skeleton.copy()  # we keep skeleton intact and remove segments from skeleton_chopped
     ID = []
     print('initial ID = ', ID)
     i = 1
@@ -1090,8 +187,8 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
     max_iterations = 1000  # Failsafe to prevent infinite loop
     skelprev = np.zeros_like(skeleton_chopped, dtype=bool)
     
-    print('Starting while loop 1:')
-    # while loop 1 out of 4
+    print('Starting while loop 1 (while there are any endpoints left):')
+    # while loop 1 out of 4 - while there are any endpoints left
     while np.any(E) and not np.array_equal(skelprev, skeleton_chopped) and i_check<= max_iterations: # and i < ordermax - this last condition was commented out in AnnaM's MATLAB code -SamK
         print(f"while 1/4, Iteration {i_check}: {np.sum(E)} endpoints remaining")
         print('order i = ', i)
@@ -1109,14 +206,15 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
         E_loc = np.argwhere(E)
         Dmask = np.zeros_like(skeleton_chopped, dtype=bool)
         col = 0
-        print('col = ', col)
+        # print('col = ', col)
         coords = np.argwhere(E)
         y, x = coords[:, 0], coords[:, 1]
         
         for k in range(len(x)):
-            print('k = ', k)
-            print('E location y, x = ', (y[k], x[k]))
-            # figure_creek_skeleton_diagnostic(skeleton_chopped, x[k], y[k], Z)
+            print('k = ', k, ' of ', len(x))
+            # print('E location y, x = ', (y[k], x[k]))
+            if k < 1:
+                figure_creek_skeleton_diagnostic(skeleton_chopped, x[k], y[k], Z)
             # remove the selected kth end point from E_loc
             E_loctemp = np.delete(E_loc, k, axis=0) # assume E_loc is 2D array
             
@@ -1141,8 +239,8 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
             except ValueError:
                 distanceToEndPt = np.inf  # or another appropriate value
 
-            print('distanceToEndPt = ', distanceToEndPt)
-            print('distanceToBranchPt = ', distanceToBranchPt)
+            # print('distanceToEndPt = ', distanceToEndPt)
+            # print('distanceToBranchPt = ', distanceToBranchPt)
             
             # Three possibilities here: the end point we have detected can be:
             # 1) an isolated point (no creek segment to detect)
@@ -1183,11 +281,11 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
                 # Find segment straight length
                 # "Create empty image with only two points" - this is the MATLAB comment, but it seems they only create one point - SamK
                 skeletoneucl = np.zeros_like(skeleton_chopped)
-                skeletoneucl[E_loc[k,0], E_loc[k,1]] = 1
+                skeletoneucl[E_loc[k,0], E_loc[k,1]] = 1 # make point of interest's value = 1 or True
                 euclD = ndimage.distance_transform_edt(skeletoneucl == 0) # for each pixel, euclidean dist to nearest non-zero value 
-                disttopt = euclD[ptlocy, ptlocx]
+                disttopt = euclD[ptlocy, ptlocx] # straight distance to point of interest, measured from ptloc, the nearest endpoint
                 STRAIGHTDIST[i,k] = disttopt
-                # Save index of branch point for junction angle assignment
+                # Save index of branch point / nearest point for junction angle assignment
                 if np.isscalar(ptlocx) and np.isscalar(ptlocy):
                     # If they're already scalars
                     ptloc_linear = np.ravel_multi_index((ptlocy, ptlocx), DD.shape)
@@ -1197,7 +295,7 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
                 IDXBRANCH[i,k] = ptloc_linear
 
                 # Create normal vectors to each segment and store their coordinates
-                # should it be y[k], x[k] or x[k], y[k]? -SamK
+                # should it be y[k], x[k] or x[k], y[k]? Currently following MATLAB code, where y[k], x[k] are set as the x,y inptus in the function -SamK
                 x1, y1, x2, y2, x3, y3, _, _ = normal_coord(DD, distanceToEndPt, y[k], x[k], limit)
                 
                 if col < IDXSEG.shape[1]:
@@ -1213,17 +311,17 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
                 # print('IDXBRANCH = ', IDXBRANCH)
 
                 col += 6
-                print('col = ', col)
+                # print('col = ', col)
                 
                 # Prepare to remove the segments order i
-                Dmask[DD < distanceToEndPt] = True
+                Dmask[DD < distanceToEndPt] = True # Dmask starts as zeros like skeleton_chopped - this makes the current segment True or 1
 
             # Find isolated segment (branch point doesn't exist)
             # seems exact same as if distanceToEndPt < distanceToBranchPt, except 
             # uses normal_coord function on x[k], y[k] rather than y[k], x[k] as above -SamK
             elif np.isinf(distanceToBranchPt) and np.isfinite(distanceToEndPt):
                 # Store segment real length into strahler table
-                STRAHLER[i,k] = distanceToEndPt
+                STRAHLER[i,k] = distanceToEndPt # k is index of this segment within the given strahler order
 
                 # Find coordinates of the closest endpoint
                 ptlocy, ptlocx = np.where(DD==distanceToEndPt)
@@ -1243,7 +341,7 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
                 # Find segment straight length
                 # "Create empty image with only two points" - this is the MATLAB comment, but it seems they only create one point - SamK
                 skeletoneucl = np.zeros_like(skeleton_chopped)
-                skeletoneucl[E_loc[k,0], E_loc[k,1]] = 1
+                skeletoneucl[E_loc[k,0], E_loc[k,1]] = 1 # make the point of interest True or 1
                 euclD = ndimage.distance_transform_edt(skeletoneucl == 0) # for each pixel, euclidean dist to nearest non-zero value 
                 disttopt = euclD[ptlocy, ptlocx]
                 STRAIGHTDIST[i,k] = disttopt
@@ -1272,7 +370,7 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
                 # print('IDXBRANCH = ', IDXBRANCH)
 
                 col += 6
-                print('col = ', col)
+                # print('col = ', col)
                 
                 # Prepare to remove the segments order i
                 Dmask[DD < distanceToEndPt] = True
@@ -1321,7 +419,7 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
                 # print('IDXBRANCH = ', IDXBRANCH)
 
                 col += 6
-                print('col = ', col)
+                # print('col = ', col)
                 
                 # Prepare to remove the segments order i
                 Dmask[DD < distanceToBranchPt] = True
@@ -1338,13 +436,16 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
             # plt.axis('image')  # Keep aspect ratio 1:1
             # plt.show()
 
+            # print('')
+
         # Prepare the creek order plot
-        creekordermask = bwmorph_diag(Dmask)
-        # Assign creek orders
+        creekordermask = bwmorph_diag(Dmask) 
+        # ^takes away 8-connectivity, makes the creek order skeleton (Dmask) into 4-connectivity - every pixel connects on square connections
+        # Assign creek orders:
         creekordersing[creekordermask != 0] = creekordermask[creekordermask != 0] * i
-        # Thicken the mask i times
+        # Thicken the mask i times:
         # creekordermask = bwmorph_thicken(creekordermask, i)
-        creekordermask = dilation(creekordermask, disk(1))
+        creekordermask = dilation(creekordermask, disk(1)) # thickens creekordermask for visibility of "creekorder" in plots of skeleton
         # Assign creek orders to thickened mask
         creekorder[creekordermask != 0] = creekordermask[creekordermask != 0] * i
         # Clear the mask
@@ -1352,11 +453,13 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
 
         # Remove order i segments
         # skelD = skeleton_chopped - Dmask # subtract matrices
-        skelD = np.logical_xor(skeleton_chopped, Dmask) # or use skelD = skeleton_chopped ^ Dmask
+        # skelD = np.logical_xor(skeleton_chopped, Dmask) # or use skelD = skeleton_chopped ^ Dmask - take away current segment from skeleton
+        skelD = skeleton_chopped & ~Dmask  # Remove Dmask pixels from skeleton
         skeleton_chopped = skelD.astype(bool) # convert to boolean/logical, could also do skelchopped = skelD > 0 -SamK
 
         # Redo skeleton
         skeleton_chopped = morphology.skeletonize(skeleton_chopped)
+        np.savetxt(fname='/Users/sam/Desktop/skeleton_chopped.csv', X=skeleton_chopped , delimiter=',')
         ID = np.append(ID, i) # update order tracking
         print('redo skeleton ID = ', ID)
 
@@ -1390,8 +493,9 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
     test = 1
 
     i_check = 1
+    print('')
 
-    print('Starting while loop 2:')
+    print('Starting while loop 2 (outlets):')
     # while loop 2 out of 4 - outlets
     # ensure there are endpoints and that skelprev and skeleton_chopped are not identical
     while np.any(E) and not np.array_equal(skelprev, skeleton_chopped) and i_check<= max_iterations:
@@ -1414,9 +518,10 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
 
             # print figure of current study point in current skeleton
             print('k = ', k)
-            print('k2 = ', k2)
+            print('k2 = ', k2, ' of ', len(x))
             print('E location y[k2], x[k2] = ', (y[k2], x[k2]))
-            # figure_creek_skeleton_diagnostic(skeleton_chopped, x[k2], y[k2], Z)
+            if np.abs(len(x) - k2) < 3 or k2 < 1:
+                figure_creek_skeleton_diagnostic(skeleton_chopped, x[k2], y[k2], Z)
 
             # Remove selected end point from E_loc
             E_loctemp = np.delete(E_loc, k2, axis=0) # assume E_loc is 2D array
@@ -1515,7 +620,7 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
                 # print('IDXBRANCH = ', IDXBRANCH)
 
                 col += 6
-                print('col = ', col)
+                # print('col = ', col)
 
                 # Prepare to remove the segments order i
                 Dmask[DD < distanceToEndPt] = True
@@ -1574,7 +679,7 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
                 # print('IDXBRANCH = ', IDXBRANCH)
 
                 col += 6
-                print('col = ', col)
+                # print('col = ', col)
 
                 # Prepare to remove the segments order i
                 Dmask[DD < distanceToEndPt] = True
@@ -1623,7 +728,7 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
                 # print('IDXBRANCH = ', IDXBRANCH)
 
                 col += 6
-                print('col = ', col)
+                # print('col = ', col)
                 
                 # Prepare to remove the segments order i
                 Dmask[DD < distanceToBranchPt] = True
@@ -1639,6 +744,7 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
             # plt.legend()
             # plt.axis('image')  # Keep aspect ratio 1:1
             # plt.show()
+            print('')
 
         # Prepare the creek order plot
         creekordermask = bwmorph_diag(Dmask)
@@ -1654,7 +760,8 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
 
         # Remove order i segments
         # skelD = skeleton_chopped - Dmask # subtract matrices
-        skelD = np.logical_xor(skeleton_chopped, Dmask) # or use skelD = skeleton_chopped ^ Dmask
+        # skelD = np.logical_xor(skeleton_chopped, Dmask) # or use skelD = skeleton_chopped ^ Dmask
+        skelD = skeleton_chopped & ~Dmask  # Remove Dmask pixels from skeleton
         skeleton_chopped = skelD.astype(bool) # convert to boolean/logical, could also do skelchopped = skelD > 0 -SamK
 
         # Redo skeleton
@@ -1671,9 +778,10 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
             print("Max iterations reached, breaking out of the loop.")
             break
     
+        print('')
+
     # Outlet Segment assignation has occured until no more end points are detected. 
     # We do a THIRD one that detects all branch points and gets interconnected sections.
-
     skelprev = np.zeros_like(skeleton, dtype=bool)
     B, E, PTS = analyze_skeleton(skeleton_chopped, Z)
     B[E != 0] = True # could also do: B[np.where(E)] = True -SamK
@@ -1685,7 +793,7 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
 
     i_check = 1
 
-    print('Starting while loop 3:')
+    print('Starting while loop 3 (branch points / interconnected segments):')
     # while loop 3 out of 4 - branch points / interconnected segments
     while np.any(B) and i_check<= max_iterations:
         print(f"while 3/4, Iteration {i_check}: {np.sum(B)} endpoints remaining")
@@ -1693,8 +801,14 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
         # Select 1 node
         k2 = 1
 
+        print(f"Total skeleton pixels: {np.sum(skeleton_chopped)}")
+        print(f"Number of branch points found: {np.sum(B)}")
+        print(f"Number of PTS points: {np.sum(PTS)}")
+
         # Find the locations of all branch and end points in the order i configuration
         B_loc = np.argwhere(B) # np.argwhere returns a 2D array of coordinates
+        print(f"B_loc shape: {B_loc.shape}")
+        print(f"First few B_loc coordinates: {B_loc[:5] if len(B_loc) > 0 else 'None'}")
         # E_loc = np.argwhere(E)
         Dmask = np.zeros_like(skeleton_chopped, dtype=bool)
         # col = 0
@@ -1708,10 +822,12 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
             k = k+1
 
             # print figure of current study point in current skeleton
+            print('len(x) = ', len(x))
             print('k = ', k)
-            print('k2 = ', k2)
+            print('k2 = ', k2, ' of ', len(x))
             print('E location y[k2], x[k2] = ', (y[k2], x[k2]))
-            figure_creek_skeleton_diagnostic(skeleton_chopped, x[k2], y[k2], Z)
+            if np.abs(len(x) - k2) < 3 or k2 < 1:
+                figure_creek_skeleton_diagnostic(skeleton_chopped, x[k2], y[k2], Z)
 
             # remove the selected kth end point from B_loc
             B_loctemp = np.delete(B_loc, k2, axis=0) # assume B_loc is 2D array
@@ -1802,29 +918,44 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
                 IDXBRANCH[i,k] = ptloc_linear
 
                 # Create normal vectors to each segment and store their coordinates
-                print('while loop 3 if part 1: normal_coord_test inputs:')
-                print('   ptlocy, ptlocx = y[k2], x[k2] = ', (y[k2], x[k2]))
-                print('   B_loc = B_loctemp = ', B_loctemp)
-                x1, y1, x2, y2, x3, y3, BWrem = normal_coord_test(DD, distanceToEndPt, x[k2], y[k2], limit, skeleton_chopped, B_loctemp)
-                # BOOKMARK
-                if col < IDXSEG.shape[1]:
-                    IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
-                else:
-                    new_values = [x1, y1, x2, y2, x3, y3]
-                    IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
-                    IDXSEG[i, -6:] = new_values
+                # print('while loop 3 if part 1: normal_coord_test inputs:')
+                # print('   ptlocy, ptlocx = y[k2], x[k2] = ', (y[k2], x[k2]))
+                # print('   B_loc = B_loctemp = ', B_loctemp)
+                try:
+                    x1, y1, x2, y2, x3, y3, BWrem, BWrem_withEndPts, BWrem_withEndPtKnobs = normal_coord_test_diagnostic(DD, distanceToBranchPt, x[k2], y[k2], limit, skeleton_chopped, B_loctemp, (len(x)-k2))
+                    
+                    if col < IDXSEG.shape[1]:
+                        IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
+                    else:
+                        new_values = [x1, y1, x2, y2, x3, y3]
+                        IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
+                        IDXSEG[i, -6:] = new_values
+                    # print('STRAHLER = ', STRAHLER)
+                    # print('STRAIGHTDIST = ', STRAIGHTDIST)
+                    # print('IDXSEG = ', IDXSEG)
+                    # print('IDXBRANCH = ', IDXBRANCH)
+                
+                    col += 6
+                    # print('col = ', col)
 
-                # print('STRAHLER = ', STRAHLER)
-                # print('STRAIGHTDIST = ', STRAIGHTDIST)
-                # print('IDXSEG = ', IDXSEG)
-                # print('IDXBRANCH = ', IDXBRANCH)
-            
-                col += 6
-                print('col = ', col)
+                    # Prepare to remove the segments order i
+                    # Dmask[DD < distanceToEndPt] = True
+                    # Dmask=BWrem # BWrem is the segment without branch or endpoints # this keeps 
+                    # if len(x) == 2 and k2 == 0: # processing the last of two remaining point
+                    #     print('len(x) == 2 and k2 == 0: breaking for loop now')
+                    #     # include both of the last branch/endpoints to be removed, as well as adjacent pts to end points to ensure breaks in any possible loops
+                    #     Dmask |= BWrem_withEndPtKnobs  # Add to existing Dmask
+                    #     break # Exit the for loop
+                    # else:
+                    #     Dmask |= BWrem  # Add to existing Dmask
+                    Dmask |= BWrem
+                    
+                except ValueError as e:
+                    print(f"Removing problematic branch point at ({y[k2]}, {x[k2]}) from B - {str(e)}")
+                    B[y[k2], x[k2]] = False  # Remove from branch point mask
+                    continue  # Skip to next k2 iteration
 
-                # Prepare to remove the segments order i
-                # Dmask[DD < distanceToEndPt] = True
-                Dmask=BWrem
+                
 
             # Find isolated segment (branch point doesn't exist)
             # seems exact same as if distanceToEndPt < distanceToBranchPt, except 
@@ -1865,29 +996,43 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
                 IDXBRANCH[i,k] = ptloc_linear
 
                 # Create normal vectors to each segment and store their coordinates
-                print('while loop 3 if part 2: normal_coord_test inputs:')
-                print('   ptlocy, ptlocx = y[k2], x[k2] = ', (y[k2], x[k2]))
-                print('   B_loc = B_loctemp = ', B_loctemp)
-                x1, y1, x2, y2, x3, y3, BWrem = normal_coord_test(DD, distanceToEndPt, x[k2], y[k2], limit, skeleton_chopped, B_loctemp)
+                # print('while loop 3 if part 2: normal_coord_test inputs:')
+                # print('   ptlocy, ptlocx = y[k2], x[k2] = ', (y[k2], x[k2]))
+                # print('   B_loc = B_loctemp = ', B_loctemp)
+                try:
+                    x1, y1, x2, y2, x3, y3, BWrem, BWrem_withEndPts, BWrem_withEndPtKnobs = normal_coord_test_diagnostic(DD, distanceToBranchPt, x[k2], y[k2], limit, skeleton_chopped, B_loctemp, (len(x)-k2))
+                    
+                    if col < IDXSEG.shape[1]:
+                        IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
+                    else:
+                        new_values = [x1, y1, x2, y2, x3, y3]
+                        IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
+                        IDXSEG[i, -6:] = new_values
+                    # print('STRAHLER = ', STRAHLER)
+                    # print('STRAIGHTDIST = ', STRAIGHTDIST)
+                    # print('IDXSEG = ', IDXSEG)
+                    # print('IDXBRANCH = ', IDXBRANCH)
                 
-                if col < IDXSEG.shape[1]:
-                    IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
-                else:
-                    new_values = [x1, y1, x2, y2, x3, y3]
-                    IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
-                    IDXSEG[i, -6:] = new_values
+                    col += 6
+                    # print('col = ', col)
 
-                # print('STRAHLER = ', STRAHLER)
-                # print('STRAIGHTDIST = ', STRAIGHTDIST)
-                # print('IDXSEG = ', IDXSEG)
-                # print('IDXBRANCH = ', IDXBRANCH)
-            
-                col += 6
-                print('col = ', col)
+                    # Prepare to remove the segments order i
+                    # Dmask[DD < distanceToEndPt] = True
+                    # Dmask=BWrem # BWrem is the segment without branch or endpoints # this keeps 
+                    # if len(x) == 2 and k2 == 0: # processing the last of two remaining point
+                    #     print('len(x) == 2 and k2 == 0: breaking for loop now')
+                    #     # include both of the last branch/endpoints to be removed, as well as adjacent pts to end points to ensure breaks in any possible loops
+                    #     Dmask |= BWrem_withEndPtKnobs  # Add to existing Dmask
+                    #     break # Exit the for loop
+                    # else:
+                    #     Dmask |= BWrem  # Add to existing Dmask
+                    Dmask |= BWrem
+                    
+                except ValueError as e:
+                    print(f"Removing problematic branch point at ({y[k2]}, {x[k2]}) from B - {str(e)}")
+                    B[y[k2], x[k2]] = False  # Remove from branch point mask
+                    continue  # Skip to next k2 iteration
 
-                # Prepare to remove the segments order i
-                # Dmask[DD < distanceToEndPt] = True
-                Dmask=BWrem
 
             # Find connected segment (detect closest branch point)
             else:
@@ -1917,29 +1062,44 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
                 IDXBRANCH[i,k] = ptloc_linear
 
                 # Create normal vectors to each segment and store their coordinates
-                print('while loop 3 if part 3: normal_coord_test inputs:')
-                print('   ptlocy, ptlocx = y[k2], x[k2] = ', (y[k2], x[k2]))
-                print('   B_loc = B_loctemp = ', B_loctemp)
-                x1, y1, x2, y2, x3, y3, BWrem = normal_coord_test(DD, distanceToBranchPt, x[k2], y[k2], limit, skeleton_chopped, B_loctemp)
+                # print('while loop 3 if part 3: normal_coord_test inputs:')
+                # print('   ptlocy, ptlocx = y[k2], x[k2] = ', (y[k2], x[k2]))
+                # print('   B_loc = B_loctemp = ', B_loctemp)
+
+                try:
+                    x1, y1, x2, y2, x3, y3, BWrem, BWrem_withEndPts, BWrem_withEndPtKnobs = normal_coord_test_diagnostic(DD, distanceToBranchPt, x[k2], y[k2], limit, skeleton_chopped, B_loctemp, (len(x)-k2))
+                    
+                    if col < IDXSEG.shape[1]:
+                        IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
+                    else:
+                        new_values = [x1, y1, x2, y2, x3, y3]
+                        IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
+                        IDXSEG[i, -6:] = new_values
+                    # print('STRAHLER = ', STRAHLER)
+                    # print('STRAIGHTDIST = ', STRAIGHTDIST)
+                    # print('IDXSEG = ', IDXSEG)
+                    # print('IDXBRANCH = ', IDXBRANCH)
                 
-                if col < IDXSEG.shape[1]:
-                    IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
-                else:
-                    new_values = [x1, y1, x2, y2, x3, y3]
-                    IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
-                    IDXSEG[i, -6:] = new_values
+                    col += 6
+                    # print('col = ', col)
 
-                # print('STRAHLER = ', STRAHLER)
-                # print('STRAIGHTDIST = ', STRAIGHTDIST)
-                # print('IDXSEG = ', IDXSEG)
-                # print('IDXBRANCH = ', IDXBRANCH)
+                    # Prepare to remove the segments order i
+                    # Dmask[DD < distanceToEndPt] = True
+                    # Dmask=BWrem # BWrem is the segment without branch or endpoints # this keeps 
+                    # if len(x) == 2 and k2 == 0: # processing the last of two remaining point
+                    #     print('len(x) == 2 and k2 == 0: breaking for loop now')
+                    #     # include both of the last branch/endpoints to be removed, as well as adjacent pts to end points to ensure breaks in any possible loops
+                    #     Dmask |= BWrem_withEndPtKnobs  # Add to existing Dmask
+                    #     break # Exit the for loop
+                    # else:
+                    #     Dmask |= BWrem  # Add to existing Dmask
+                    Dmask |= BWrem
+                    
+                except ValueError as e:
+                    print(f"Removing problematic branch point at ({y[k2]}, {x[k2]}) from B - {str(e)}")
+                    B[y[k2], x[k2]] = False  # Remove from branch point mask
+                    continue  # Skip to next k2 iteration
 
-                col += 6
-                print('col = ', col)
-
-                # Prepare to remove the segments order i
-                # Dmask[DD < distanceToBranchPt] = True
-                Dmask=BWrem # Dmasktemp without endpoints from normal_coord_test func -SamK
 
 
             # # Plot the coordinates of the normal vector for each segment.
@@ -1953,10 +1113,7 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
             # plt.axis('image')  # Keep aspect ratio 1:1
             # plt.show()
 
-        # Remove order i segments
-        # skelD = skeleton_chopped - Dmask # subtract matrices
-        skelD = np.logical_xor(skeleton_chopped, Dmask) # or use skelD = skeleton_chopped ^ Dmask
-        skeleton_chopped = skelD.astype(bool) # convert to boolean/logical, could also do skelchopped = skelD > 0 -SamK
+            print('')
 
         # Prepare the creek order plot
         creekordermask = bwmorph_diag(Dmask)
@@ -1970,51 +1127,44 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
         # Clear the mask
         del creekordermask
 
-        # # Remove order i segments
+        # earlier had this chunk above the creekordermask chunk, but not sure why, was not this way in first two while loops -SamK
+        # Remove order i segments
         # skelD = skeleton_chopped - Dmask # subtract matrices
         # skelD = np.logical_xor(skeleton_chopped, Dmask) # or use skelD = skeleton_chopped ^ Dmask
-        # skeleton_chopped = skelD.astype(bool) # convert to boolean/logical, could also do skelchopped = skelD > 0 -SamK
+        skelD = skeleton_chopped & ~Dmask  # Remove Dmask pixels from skeleton
+        skeleton_chopped = skelD.astype(bool) # convert to boolean/logical, could also do skelchopped = skelD > 0 -SamK
 
-        # Redo skeleton
-        skeleton_chopped = morphology.skeletonize(skeleton_chopped)
+        # # Redo skeleton - not sure why this is here - not in first two while loops -SamK
+        # skeleton_chopped = morphology.skeletonize(skeleton_chopped)
 
         # # Find the end and branch points of the order i+1 network configuration
         # i += 1 # Store order number and move on to the next creek order until skeleton contains only 0
         # col = 0
-        skeleton_chopped = bwmorph_clean(skeleton_chopped)
+        # skeleton_chopped = bwmorph_clean(skeleton_chopped) # not sure what the point of this is
         B, E, PTS = analyze_skeleton(skeleton_chopped, Z)
         B = PTS
+        print(f"Total skeleton pixels: {np.sum(skeleton_chopped)}")
+        print(f"Number of branch points found: {np.sum(B)}")
+        print(f"B_loctemp coordinates: {B_loctemp}")
 
         i_check += 1
         if i_check >= max_iterations:
             print("Max iterations reached, breaking out of the loop.")
             break
 
-    print('Starting while loop 4:')
+        print('')
+
+    print('Starting while loop 4 (loops):')
     # while loop 4 out of 4 - loop processing - but commented out while loop in AnnaM's MATLAB code
     # so maybe we don't use a while loop, but let's see if we do -SamK
-    while np.any(skeleton_chopped) and i_check<= max_iterations:
+    # While loop 4 - handle remaining connected components
+    while np.any(skeleton_chopped) and i_check <= max_iterations:
         print(f"while 4/4, Iteration {i_check}: {np.sum(skeleton_chopped)} skeleton_chopped points remaining")
         print('order i = ', i)
-        # Process remaining loops with no nodes
-        # Prepare the creek order plot
-        creekordermask = bwmorph_diag(Dmask)
-        # Assign creek orders
-        creekordersing[creekordermask != 0] = creekordermask[creekordermask != 0] * i
-        # Thicken the mask i times
-        # creekordermask = bwmorph_thicken(creekordermask, i)
-        creekordermask = dilation(creekordermask, disk(1))
-        # Assign creek orders to thickened mask
-        creekorder[creekordermask != 0] = creekordermask[creekordermask != 0] * i
-        # Clear the mask
-        del creekordermask
-        # Get connected components
-        skelcomp = bwconncomp(skeleton_chopped)
-        # Get number of objects
-        idxnum = skelcomp['n_objects']
-        print('idxnum = ', idxnum)
 
-        # BOOKMARK add plots of skelcomp and idxnum -SamK
+        skelcomp = bwconncomp(skeleton_chopped)
+        idxnum = skelcomp['n_objects']
+
         # Visualize skelcomp
         # Assuming `skeleton_chopped` is a 2D binary array
         labeled_components = skelcomp['labels']  # Get the labeled components
@@ -2025,190 +1175,413 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
         plt.title("Connected Components in Skeleton")
         plt.axis('off')  # Hide axes for better visualization
         plt.show()
-
-        if idxnum == 0:
-            # No more components to process
+        
+        if idxnum == 0:  # no more components to process
             break
-
-        # loop 4/4 from line-for-line MATLAB, commented out for now -SamK
-        # Go through each remaining loop with no nodes
-        for iii in range(0, idxnum + 1): # MATLAB goes 1:idxnum -SamK
-            print('iii = ', iii)
+            
+        for iii in range(idxnum):
+            print('iii = ', iii, ' of ', idxnum)
             k = k + 1
-
-            # Get pixel indices for current component
-            idxlist = skelcomp['pixel_idx'][iii]
-            if not idxlist[0].size or not idxlist[1].size:
-                continue
-            # Create mask for current component
-            loopmask = np.zeros_like(skeleton_chopped, dtype=bool)
-            loopmask[idxlist] = True
-            print('idxlist = ', idxlist)
-
+            print('k = ', k)
+            
+            # Get current component
+            pixel_coords = skelcomp['pixel_idx'][iii]
+            component_mask = np.zeros_like(skeleton_chopped, dtype=bool)
+            component_mask[pixel_coords] = True
+            
+            # Check if it's a closed loop (no branch/end points)
+            B_comp, E_comp, _ = analyze_skeleton(component_mask, Z)
+            
             # Store total pixels in component 
-            sinuouslength = np.sum(loopmask, dtype=float)
-
+            sinuous_length = np.sum(component_mask, dtype=float)
+            
             # Safely expand STRAHLER array if needed
             if i >= STRAHLER.shape[0] or k >= STRAHLER.shape[1]:
                 new_rows = max(i + 1, STRAHLER.shape[0])
                 new_cols = max(k + 1, STRAHLER.shape[1])
-                STRAHLER_temp = np.zeros((new_rows, new_cols), dtype=float)  # Explicitly set dtype
+                STRAHLER_temp = np.zeros((new_rows, new_cols), dtype=float)
                 STRAHLER_temp[:STRAHLER.shape[0], :STRAHLER.shape[1]] = STRAHLER
                 STRAHLER = STRAHLER_temp
                 
             # Store length
-            STRAHLER[i,k] = sinuouslength
-
-            halflg = round(sinuouslength/2) # doesn't seem to be used later -SamK
-            # Defined first point
-            ptmask = np.zeros_like(skeleton_chopped, dtype=bool)
-            ptmask[idxlist[0][0], idxlist[1][0]] = True # add points at first point
-            ptlocy, ptlocx = np.where(ptmask)
-            ptloc = np.where(ptmask)
-            ptloc = ptloc[0]
-            ptlocx = ptlocx[0]
-            ptlocy = ptlocy[0]
-
-            # Define second point halfway across the loop
-            DD = calculate_chessboard_distance(loopmask, ptlocy, ptlocx) # I THINK should be input as ptlocy, ptlocx? -SamK
-            midpt = round(np.nanmean(DD)) # 1. Find value equal to rounded mean
-            linear_indices = np.where(DD.ravel() == midpt)[0] # 2. Get linear indices where Dtemp equals this value
-            mid_idx = linear_indices[len(linear_indices)//2]  # 3. Take middle element of these indices
-            row_midpt, col_midpt = np.unravel_index(mid_idx, DD.shape) # 4. Convert back to 2D coordinates
-
-            # print figure of current study point in current skeleton
-            print('k = ', k)
-            figure_creek_skeleton_diagnostic(skeleton_chopped, ptlocx, ptlocy, Z)
+            STRAHLER[i,k] = sinuous_length
             
-            print(f"mid_idx: {mid_idx}")
-            print(f"DD.shape: {DD.shape}")
-            print(f"row_midpt, col_midpt: {row_midpt}, {col_midpt}")
+            # Get coordinates of first point for processing
+            ptlocy, ptlocx = pixel_coords[0][0], pixel_coords[1][0]
             
-            # Find segment straight length
-            # "Create empty image with only two points" - this is the MATLAB comment, but it seems they only create one point - SamK
-            skeletoneucl = np.zeros_like(skeleton_chopped)
-            # row_mid, col_mid = np.where(DD == midpt)  # get coordinates where value appears
-            # Set that location to 1
-            skeletoneucl[row_midpt, col_midpt] = 1
-            euclD = ndimage.distance_transform_edt(skeletoneucl == 0) # for each pixel, euclidean dist to nearest non-zero value 
-            disttopt = euclD[ptlocy, ptlocx]
+            # Calculate distances from first point
+            DD = calculate_chessboard_distance(component_mask, ptlocy, ptlocx)
+            
+            if np.sum(E_comp) == 0 and np.sum(B_comp) == 0:
+                # True closed loop - process as single segment with artificial midpoint
+                print(f"Processing closed loop component {iii}")
+                
+                # Find midpoint using max distance approach
+                midpt = round(np.nanmax(DD)) # 1. Find value equal to rounded max
+                linear_indices = np.where(DD.ravel() == midpt)[0] # 2. Get linear indices where Dtemp equals this value
+                mid_idx = linear_indices[len(linear_indices)//2] # 3. Take middle element of these indices
+                row_midpt, col_midpt = np.unravel_index(mid_idx, DD.shape) # 4. Convert back to 2D coordinates
 
-            STRAIGHTDIST[i,k] = np.nan # No sinuosity for loops
+                # print figure of current study point in current skeleton
+                figure_creek_skeleton_diagnostic(skeleton_chopped, ptlocx, ptlocy, Z)
+                print(f"row_midpt, col_midpt: {row_midpt}, {col_midpt}")
+                
+                # Use normal_coord_test_diagnostic with artificial endpoint, with exception handling
+                try:
+                    x1, y1, x2, y2, x3, y3, BWrem, BWrem_withEndPts, BWrem_withEndPtKnobs = normal_coord_test_diagnostic(
+                        DD, sinuous_length, ptlocx, ptlocy, limit, skeleton_chopped, [row_midpt, col_midpt])
+                    
+                    # Store coordinates
+                    if col < IDXSEG.shape[1]:
+                        IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
+                    else:
+                        new_values = [x1, y1, x2, y2, x3, y3]
+                        IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
+                        IDXSEG[i, -6:] = new_values
+                    
+                    col += 6
+                    
+                except ValueError as e:
+                    print(f"Skipping closed loop component {iii} - could not process normal vectors: {str(e)}")
+                    print("Using fallback coordinates: center and midpoint along skeleton path")
+                    
+                    # Calculate center coordinates of the component
+                    center_y = np.mean(pixel_coords[0])
+                    center_x = np.mean(pixel_coords[1])
+                    
+                    # Find midpoint along the skeleton path between start and end
+                    # Create a simple path from start to endpoint using component_mask
+                    start_point = (ptlocy, ptlocx)
+                    end_point = (row_midpt, col_midpt)
+                    
+                    # Get all skeleton pixels in this component
+                    skeleton_pixels = list(zip(pixel_coords[0], pixel_coords[1]))
+                    
+                    # Find midpoint pixel along the skeleton path
+                    # Calculate distances from start point to all pixels in component
+                    distances_from_start = {}
+                    for pix_y, pix_x in skeleton_pixels:
+                        dist = calculate_chessboard_distance(component_mask, ptlocy, ptlocx)
+                        if not np.isnan(dist[pix_y, pix_x]):
+                            distances_from_start[(pix_y, pix_x)] = dist[pix_y, pix_x]
+                    
+                    # Find pixel that's roughly halfway along the path
+                    if distances_from_start:
+                        max_dist = max(distances_from_start.values())
+                        target_dist = max_dist / 2
+                        # Find pixel closest to target distance
+                        closest_pixel = min(distances_from_start.items(), 
+                                        key=lambda x: abs(x[1] - target_dist))
+                        midpoint_y, midpoint_x = closest_pixel[0]
+                    else:
+                        # Fallback to calculated midpoint
+                        midpoint_y, midpoint_x = row_midpt, col_midpt
+                    
+                    # Create normal vectors
+                    x1, y1 = center_x, center_y  # Center point
+                    x2, y2 = midpoint_x, midpoint_y  # Midpoint along skeleton path
+                    x3, y3 = center_x, center_y  # Second normal vector point
+                    
+                    # Store the fallback coordinates
+                    if col < IDXSEG.shape[1]:
+                        IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
+                    else:
+                        new_values = [x1, y1, x2, y2, x3, y3]
+                        IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
+                        IDXSEG[i, -6:] = new_values
+                    
+                    col += 6
+                    
+                # Set straight distance as NaN for loops
+                STRAIGHTDIST[i,k] = np.nan
+                
+            else:
+                # Has branch/end points - process like while loop 3
+                print(f"Processing component {iii} with branch/end points like while loop 3")
+                
+                # Initialize Dmask for this component
+                Dmask_comp = np.zeros_like(skeleton_chopped, dtype=bool)
+                
+                # Get branch and endpoint coordinates for this component
+                B_comp_loc = np.argwhere(B_comp)
+                E_comp_loc = np.argwhere(E_comp)
+                
+                # Process each endpoint in this component
+                for k_comp in range(len(E_comp_loc)):
+                    y_comp, x_comp = E_comp_loc[k_comp, 0], E_comp_loc[k_comp, 1]
+                    
+                    # Remove the selected endpoint from E_comp_loc
+                    E_comp_temp = np.delete(E_comp_loc, k_comp, axis=0)
+                    
+                    # Get distances from current endpoint to rest of component
+                    DD_comp = calculate_geodesic_distance(component_mask, y_comp, x_comp)
+                    
+                    # Find distances to branch points
+                    if len(B_comp_loc) > 0:
+                        branch_distances_comp = DD_comp[B_comp_loc[:, 0], B_comp_loc[:, 1]]
+                        finite_branch_distances_comp = branch_distances_comp[np.isfinite(branch_distances_comp)]
+                        try:
+                            distanceToBranchPt_comp = np.min(finite_branch_distances_comp).astype(float)
+                        except ValueError:
+                            distanceToBranchPt_comp = np.inf
+                    else:
+                        distanceToBranchPt_comp = np.inf
+                    
+                    # Find distances to other endpoints
+                    if len(E_comp_temp) > 0:
+                        end_distances_comp = DD_comp[E_comp_temp[:, 0], E_comp_temp[:, 1]]
+                        finite_end_distances_comp = end_distances_comp[np.isfinite(end_distances_comp)]
+                        try:
+                            distanceToEndPt_comp = np.min(finite_end_distances_comp).astype(float)
+                        except ValueError:
+                            distanceToEndPt_comp = np.inf
+                    else:
+                        distanceToEndPt_comp = np.inf
+                    
+                    # Process based on nearest connection
+                    if np.isinf(distanceToEndPt_comp) and np.isinf(distanceToBranchPt_comp):
+                        # Isolated point - skip
+                        continue
+                    elif np.isfinite(distanceToEndPt_comp) and (np.isinf(distanceToBranchPt_comp) or distanceToEndPt_comp < distanceToBranchPt_comp):
+                        # Connect to nearest endpoint
+                        target_distance = distanceToEndPt_comp
+                        ptlocy_comp, ptlocx_comp = np.where(DD_comp == distanceToEndPt_comp)
+                        ptlocy_comp, ptlocx_comp = ptlocy_comp[0], ptlocx_comp[0]
+                    else:
+                        # Connect to nearest branch point
+                        target_distance = distanceToBranchPt_comp
+                        ptlocy_comp, ptlocx_comp = np.where(DD_comp == distanceToBranchPt_comp)
+                        ptlocy_comp, ptlocx_comp = ptlocy_comp[0], ptlocx_comp[0]
+                    
+                    # Store segment data
+                    STRAHLER[i, k] = target_distance
+                    
+                    # Calculate straight distance
+                    skeletoneucl_comp = np.zeros_like(component_mask)
+                    skeletoneucl_comp[y_comp, x_comp] = 1
+                    euclD_comp = ndimage.distance_transform_edt(skeletoneucl_comp == 0)
+                    disttopt_comp = euclD_comp[ptlocy_comp, ptlocx_comp]
+                    STRAIGHTDIST[i, k] = disttopt_comp
+                    
+                    # Save index of branch point for junction angle assignment
+                    ptloc_linear_comp = np.ravel_multi_index((ptlocy_comp, ptlocx_comp), DD_comp.shape)
+                    IDXBRANCH[i, k] = ptloc_linear_comp
+                    
+                    # Create normal vectors using try-catch for error handling
+                    try:
+                        x1_comp, y1_comp, x2_comp, y2_comp, x3_comp, y3_comp, BWrem_comp, _, _ = normal_coord_test_diagnostic(
+                            DD_comp, target_distance, x_comp, y_comp, limit, component_mask, [ptlocy_comp, ptlocx_comp])
+                        
+                        # Store coordinates
+                        if col < IDXSEG.shape[1]:
+                            IDXSEG[i, col:col+6] = [x1_comp, y1_comp, x2_comp, y2_comp, x3_comp, y3_comp]
+                        else:
+                            new_values = [x1_comp, y1_comp, x2_comp, y2_comp, x3_comp, y3_comp]
+                            IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
+                            IDXSEG[i, -6:] = new_values
+                        
+                        col += 6
+                        
+                        # Add segment to removal mask
+                        Dmask_comp |= BWrem_comp
+                        
+                    except ValueError as e:
+                        print(f"Error processing segment in component {iii}: {str(e)}")
+                        # Store basic coordinates as fallback
+                        if col < IDXSEG.shape[1]:
+                            IDXSEG[i, col:col+6] = [x_comp, y_comp, ptlocx_comp, ptlocy_comp, x_comp, y_comp]
+                        else:
+                            new_values = [x_comp, y_comp, ptlocx_comp, ptlocy_comp, x_comp, y_comp]
+                            IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
+                            IDXSEG[i, -6:] = new_values
+                        col += 6
+                        continue
+                
+                # Note: We don't remove segments here since we're processing the entire component
+                # The component will be removed at the end of the loop iteration
+            
+            # Remove processed component directly
+            skeleton_chopped[pixel_coords] = False
+
+        # Re-analyze skeleton to detect any newly exposed branch/end points
+        # This is important because removing components might expose new endpoints
+        # at connection points that were previously internal to components
+        B, E, PTS = analyze_skeleton(skeleton_chopped, Z)
+        B = PTS
+        
+        i_check += 1
+        if i_check >= max_iterations:
+            print("Max iterations reached, breaking out of the loop.")
+            break
+
+        print('')
+
+    # original try, true to MATLAB loop:
+    # while np.any(skeleton_chopped) and i_check<= max_iterations:
+    #     print(f"while 4/4, Iteration {i_check}: {np.sum(skeleton_chopped)} skeleton_chopped points remaining")
+    #     print('order i = ', i)
+    #     # Process remaining loops with no nodes
+    #     # # Prepare the creek order plot
+    #     # creekordermask = bwmorph_diag(Dmask)
+    #     # # Assign creek orders
+    #     # creekordersing[creekordermask != 0] = creekordermask[creekordermask != 0] * i
+    #     # # Thicken the mask i times
+    #     # # creekordermask = bwmorph_thicken(creekordermask, i)
+    #     # creekordermask = dilation(creekordermask, disk(1))
+    #     # # Assign creek orders to thickened mask
+    #     # creekorder[creekordermask != 0] = creekordermask[creekordermask != 0] * i
+    #     # # Clear the mask
+    #     # del creekordermask
+    #     # Get connected components
+    #     skelcomp = bwconncomp(skeleton_chopped)
+    #     # print('skelcomp:')
+    #     # print(skelcomp)
+    #     # Get number of objects
+    #     idxnum = skelcomp['n_objects']
+    #     print('idxnum = ', idxnum)
+
+    #     # Visualize skelcomp
+    #     # Assuming `skeleton_chopped` is a 2D binary array
+    #     labeled_components = skelcomp['labels']  # Get the labeled components
+    #     plt.figure(figsize=(10, 10))
+    #     plt.imshow(skeleton_chopped, cmap='gray', alpha=0.5)  # Plot the original skeleton as the background
+    #     plt.imshow(labeled_components, cmap='nipy_spectral', alpha=0.7)  # Overlay the labeled components
+    #     plt.colorbar(label="Component Labels")
+    #     plt.title("Connected Components in Skeleton")
+    #     plt.axis('off')  # Hide axes for better visualization
+    #     plt.show()
+
+    #     if idxnum == 0:
+    #         # No more components to process
+    #         break
+
+        # # loop 4/4 from line-for-line MATLAB, commented out for now -SamK
+        # # Go through each remaining loop with no nodes
+        # for iii in range(idxnum): # MATLAB goes 1:idxnum, but idxnum is a number of components -SamK
+        #     print('iii = ', iii)
+        #     print('iii = ', iii, ' of ', idxnum)
+        #     k = k + 1
+        #     print('k = ', k)
+
+            # # Get pixel indices for current component
+            # # print('skelcomp[pixel_idx] = \n', skelcomp['pixel_idx'])
+            # idxlist = skelcomp['pixel_idx'][iii]
+            # if not idxlist[0].size or not idxlist[1].size:
+            #     continue
+            # # Create mask for current component
+            # loopmask = np.zeros_like(skeleton_chopped, dtype=bool)
+            # loopmask[idxlist] = True
+            # print('idxlist = ', idxlist)
+
+            # # Store total pixels in component 
+            # sinuouslength = np.sum(loopmask, dtype=float)
+
+            # # Safely expand STRAHLER array if needed
+            # if i >= STRAHLER.shape[0] or k >= STRAHLER.shape[1]:
+            #     new_rows = max(i + 1, STRAHLER.shape[0])
+            #     new_cols = max(k + 1, STRAHLER.shape[1])
+            #     STRAHLER_temp = np.zeros((new_rows, new_cols), dtype=float)  # Explicitly set dtype
+            #     STRAHLER_temp[:STRAHLER.shape[0], :STRAHLER.shape[1]] = STRAHLER
+            #     STRAHLER = STRAHLER_temp
+                
+            # # Store length
+            # STRAHLER[i,k] = sinuouslength
+
+            # halflg = round(sinuouslength/2) # doesn't seem to be used later -SamK
+            # # Defined first point
+            # ptmask = np.zeros_like(skeleton_chopped, dtype=bool)
+            # ptmask[idxlist[0][0], idxlist[1][0]] = True # add points at first point
+            # ptlocy, ptlocx = np.where(ptmask)
+            # ptloc = np.where(ptmask)
+            # ptloc = ptloc[0]
+            # ptlocx = ptlocx[0]
+            # ptlocy = ptlocy[0]
+
+            # # print figure of current study point in current skeleton
+            # plot_matrix(skeleton_chopped, "Initial Skeleton (Binary)")
+
+            # # Define second point halfway across the loop
+            # DD = calculate_chessboard_distance(loopmask, ptlocy, ptlocx) # I THINK should be input as ptlocy, ptlocx? -SamK
+            # # midpt = round(np.nanmean(DD)) # 1. Find value equal to rounded mean
+            # # linear_indices = np.where(DD.ravel() == midpt)[0] # 2. Get linear indices where Dtemp equals this value
+            # # mid_idx = linear_indices[len(linear_indices)//2]  # 3. Take middle element of these indices
+            # # row_midpt, col_midpt = np.unravel_index(mid_idx, DD.shape) # 4. Convert back to 2D coordinates
+            # # MATLAB used the mean of DD, but if the loop is truly a closed loop, the halfway point will be the max: -SamK
+            # # also, if the loop is closed and this rule holds true, the while loop will become endless by just knocking off half of the component each time -SamK
+            # midpt = round(np.nanmax(DD)) # 1. Find value equal to rounded max
+            # linear_indices = np.where(DD.ravel() == midpt)[0] # 2. Get linear indices where Dtemp equals this value
+            # mid_idx = linear_indices[len(linear_indices)//2]  # 3. Take middle element of these indices
+            # row_midpt, col_midpt = np.unravel_index(mid_idx, DD.shape) # 4. Convert back to 2D coordinates
+
+            # # print figure of current study point in current skeleton
+            # print('k = ', k)
+            # figure_creek_skeleton_diagnostic(skeleton_chopped, ptlocx, ptlocy, Z)
+
+            # # print(f"mid_idx: {mid_idx}")
+            # # print(f"DD.shape: {DD.shape}")
+            # print(f"row_midpt, col_midpt: {row_midpt}, {col_midpt}")
+            
+            # # Find segment straight length - redundant for loops -SamK
+            # # "Create empty image with only two points" - this is the MATLAB comment, but it seems they only create one point - SamK
+            # skeletoneucl = np.zeros_like(skeleton_chopped)
+            # # row_mid, col_mid = np.where(DD == midpt)  # get coordinates where value appears
+            # # Set that location to 1
+            # skeletoneucl[row_midpt, col_midpt] = 1
+            # euclD = ndimage.distance_transform_edt(skeletoneucl == 0) # for each pixel, euclidean dist to nearest non-zero value, the midpt
+            # disttopt = euclD[ptlocy, ptlocx] # distance to midpt matrix from point of interest, poi = ptloc
+
+            # STRAIGHTDIST[i,k] = np.nan # No sinuosity for loops
 
             # # Save index of branch point for junction angle assignment
             # IDXBRANCH[i,k] = ptloc
 
             # Create normal vectors to each segment and store their coordinates
-            print('while loop 4: normal_coord_test inputs:')
-            print('   ptlocy, ptlocx = ptlocy, ptlocx = ', (ptlocy, ptlocx))
-            print('   B_loc = (row_midpt, col_midpt) = ', (row_midpt, col_midpt))
-            x1, y1, x2, y2, x3, y3, BWrem = normal_coord_test(DD, sinuouslength, ptlocx, ptlocy, limit, skeleton_chopped, [row_midpt, col_midpt])
-            if col < IDXSEG.shape[1]:
-                IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
-            else:
-                new_values = [x1, y1, x2, y2, x3, y3]
-                IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
-                IDXSEG[i, -6:] = new_values
-
-            col += 6
-            print('col = ', col)
-            print('col = ', col)
-
-
-        # Claude AI, commented out for now -SamK
-        # # Initialize temp arrays to store masks and distances
-        # temp_masks = []
-        # max_distances = []
+            # print('while loop 4: normal_coord_test inputs:')
+            # print('   ptlocy, ptlocx = ptlocy, ptlocx = ', (ptlocy, ptlocx))
+            # print('   B_loc = (row_midpt, col_midpt) = ', (row_midpt, col_midpt))
+            # x1, y1, x2, y2, x3, y3, BWrem, BWrem_withEndPts, BWrem_withEndPtKnobs = normal_coord_test_diagnostic(DD, sinuouslength, ptlocx, ptlocy, limit, skeleton_chopped, [row_midpt, col_midpt], (idxnum - iii))
             
-        # # Go through each remaining loop with no nodes
-        # for iii in range(idxnum): # idxnum is number of different objects
-        #     print('iii = ', iii)
-        #     k = k + 1
-
-        #     # Get pixel indices for current component
-        #     idxlist = skelcomp['pixel_idx'][iii]
-        #     if not idxlist[0].size or not idxlist[1].size:
-        #         continue
-                
-        #     # Create mask for current component
-        #     loopmask = np.zeros_like(skeleton_chopped, dtype=bool)
-        #     loopmask[idxlist] = True
-        #     print('idxlist = ', idxlist)
-
-        #     # Store total pixels in component 
-        #     sinuouslength = np.sum(loopmask, dtype=float)
-
-        #     # Safely expand STRAHLER array if needed
-        #     if i >= STRAHLER.shape[0] or k >= STRAHLER.shape[1]:
-        #         new_rows = max(i + 1, STRAHLER.shape[0])
-        #         new_cols = max(k + 1, STRAHLER.shape[1])
-        #         STRAHLER_temp = np.zeros((new_rows, new_cols), dtype=float)  # Explicitly set dtype
-        #         STRAHLER_temp[:STRAHLER.shape[0], :STRAHLER.shape[1]] = STRAHLER
-        #         STRAHLER = STRAHLER_temp
-                
-        #     # Store length
-        #     STRAHLER[i,k] = sinuouslength
-
-        #     # Get coordinates of first point
-        #     y_first = idxlist[0][0]
-        #     x_first = idxlist[1][0]
+            # Dmask |= BWrem
             
-        #     try:
-        #         # Calculate distances
-        #         DD = calculate_chessboard_distance(loopmask, y_first, x_first)
-                
-        #         # Find point furthest from first point
-        #         valid_distances = DD[np.isfinite(DD)]
-        #         if len(valid_distances) > 0:
-        #             max_dist = np.max(valid_distances)
-        #             y_far, x_far = np.where(DD == max_dist)
-        #             if len(y_far) > 0 and len(x_far) > 0:
-        #                 y_far = y_far[0]
-        #                 x_far = x_far[0]
-                        
-        #                 # Calculate normal vectors
-        #                 try:
-        #                     x1, y1, x2, y2, x3, y3, BWrem = normal_coord_test(
-        #                         DD, sinuouslength, x_first, y_first, 
-        #                         limit, skeleton_chopped, (y_far, x_far)
-        #                     )
+            # if col < IDXSEG.shape[1]:
+            #     IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
+            # else:
+            #     new_values = [x1, y1, x2, y2, x3, y3]
+            #     IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
+            #     IDXSEG[i, -6:] = new_values
 
-        #                     if col < IDXSEG.shape[1]:
-        #                         IDXSEG[i, col:col+6] = [x1, y1, x2, y2, x3, y3]
-        #                     else:
-        #                         new_values = [x1, y1, x2, y2, x3, y3]
-        #                         IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
-        #                         IDXSEG[i, -6:] = new_values
+            # col += 6
+            # # print('col = ', col)
 
-        #                     # print('STRAHLER = ', STRAHLER)
-        #                     # print('STRAIGHTDIST = ', STRAIGHTDIST)
-        #                     # print('IDXSEG = ', IDXSEG)
-        #                     # print('IDXBRANCH = ', IDXBRANCH)
-
-        #                     col += 6
-        #                     print('col = ', col)
-
-        #                     # # Store coordinates if successful
-        #                     # if i < IDXSEG.shape[0]:
-        #                     #     IDXSEG[i, :] = [x1, y1, x2, y2, x3, y3]
-        #                 except Exception as e:
-        #                     print(f"Error calculating normal vectors: {str(e)}")
-        #                     continue
-                            
-        #                 # Remove processed component from skeleton
-        #                 skeleton_chopped[loopmask] = False
-        #                 skeleton_chopped = morphology.skeletonize(skeleton_chopped)
-
-        #     except Exception as e:
-        #         print(f"Error processing component {iii}: {str(e)}")
-        #         continue
+            # # originally this was before the for loop, let's try it here where it is in the other 3 while loops: -SamK
+            # # Prepare the creek order plot
+            # creekordermask = bwmorph_diag(Dmask)
+            # # Assign creek orders
+            # creekordersing[creekordermask != 0] = creekordermask[creekordermask != 0] * i
+            # # Thicken the mask i times
+            # # creekordermask = bwmorph_thicken(creekordermask, i)
+            # creekordermask = dilation(creekordermask, disk(1))
+            # # Assign creek orders to thickened mask
+            # creekorder[creekordermask != 0] = creekordermask[creekordermask != 0] * i
+            # # Clear the mask
+            # del creekordermask
+            
+            # # skeleton_chopped[idxlist[0], idxlist[1]] = False # not sure exactly how this line works, going to try what was used earlier:
+            # # Prepare to remove the segments order i
+            # skelD = skeleton_chopped & ~Dmask  # Remove Dmask pixels from skeleton
+            # skeleton_chopped = skelD.astype(bool) # convert to boolean/logical, could also do skelchopped = skelD > 0 -SamK
 
 
-        i_check += 1
-        if i_check >= max_iterations:
-            print("Max iterations reached, breaking out of the loop.")
-            break
+            # print('')
+
+        # i_check += 1
+        # if i_check >= max_iterations:
+        #     print("Max iterations reached, breaking out of the loop.")
+        #     break
+
+        # print('')
     
+    print('done with all while loops')
     # Convert lists to numpy arrays
     STRAHLER = np.array(STRAHLER)
     STRAIGHTDIST = np.array(STRAIGHTDIST)
@@ -2277,7 +1650,7 @@ def process_outlet_detection(Z, skeleton, nbbreaches):
     for y, x in zip(ybreach, xbreach):
         # Find nearest border point
         border_y, border_x = np.where(border_mask)
-        
+
         # Calculate distances to all border points
         distances = np.sqrt((border_y - y)**2 + (border_x - x)**2)
         nearest_idx = np.argmin(distances)
@@ -2446,19 +1819,28 @@ def normal_coord(D, distanceToPt, x, y, limit):
     
     return x1, y1, x2, y2, x3, y3, Dtemp, Etemp
 
-def plot_matrix(matrix, title, point_coords=None, cmap='gray', alpha=1.0, crosshair_color='red'):
+def plot_matrix(matrix, title, point_coords=None, cmap='gray', alpha=1.0, crosshair_color='cyan'):
     """Helper function to plot matrices with optional crosshairs."""
     plt.figure(figsize=(10, 10))
-    plt.imshow(matrix, cmap=cmap, alpha=alpha)
-    plt.colorbar(label="Values")
+    matrix = np.array(matrix, copy=True)  # Ensure writable
+    matrix = np.transpose(matrix)
+    # masked_matrix = np.nan_to_num(matrix, nan=np.nanmin(matrix)*2)
+    # masked_matrix = np.nan_to_num(matrix, nan=0)
+    masked_matrix = np.ma.masked_invalid(matrix) # mask NaN values
+    if cmap=='gray':
+        plt.imshow(masked_matrix, cmap=cmap, alpha=alpha)
+    else:
+        plt.imshow(masked_matrix, cmap=cmap, alpha=alpha, 
+                   vmin=np.nanmin(matrix), vmax=np.nanmax(matrix), interpolation='nearest')
+        plt.colorbar()
     if point_coords:
         for y, x in point_coords:
-            plt.plot(x, y, marker='+', color=crosshair_color, alpha=0.6, markersize=15)
+            plt.plot(y, x, 'o', markersize=10, markeredgecolor=crosshair_color, markerfacecolor='none', alpha=0.6)
     plt.title(title)
-    plt.axis('off')
+    # plt.axis('off')
     plt.show()
 
-def normal_coord_test(D, distanceToPt, x, y, limit, skeleton_chopped, B_loc):
+def normal_coord_test_diagnostic(D, distanceToPt, x, y, limit, skeleton_chopped, B_loc, k_check=None):
     """
     Test version of normal_coord that handles branch points differently
     
@@ -2477,6 +1859,8 @@ def normal_coord_test(D, distanceToPt, x, y, limit, skeleton_chopped, B_loc):
     B_loc : array
         Branch point locations, should be given as return of np.argwhere, 
         with a nested array of coordinate pairs.
+    k_check : int
+        iteration value to determine if to plot
         
     Returns:
     --------
@@ -2488,11 +1872,21 @@ def normal_coord_test(D, distanceToPt, x, y, limit, skeleton_chopped, B_loc):
     # normal_coord_test(D,  distanceToPt,    x,     y,     limit, skeleton_chopped, B_loc) # inputs -SamK
     # normal_coord_test(DD, distanceToEndPt, x[k2], y[k2], limit, skeleton_chopped, B_loctemp) # ex. 1 -SamK
     
-    print('normal_coord_test: ')
-    print('   y, x = ', (y, x))
+    # Ensure B_loc is a 2D NumPy array
+    B_loc = np.array(B_loc)
+    if B_loc.ndim == 1:
+        B_loc = B_loc.reshape(1, -1)
+
+    # print('normal_coord_test: ')
+    # print('   y, x = ', (y, x))
+    # print('   B_loc = ', B_loc)
+    # print('   B_loc[:, 0] = ', B_loc[:, 0])
+    # print('   B_loc[:, 1] = ', B_loc[:, 1])
     # Create branch point mask
     Bmask = np.zeros_like(D, dtype=bool)
-    Bmask[B_loc] = True 
+    Bmask[B_loc[:, 0], B_loc[:, 1]] = True 
+    # rows, cols = np.unravel_index(B_loc, Bmask.shape)
+    # Bmask[rows, cols] = True
     # Bmask.ravel()[B_loc] = True
     yB, xB = np.where(Bmask) # coords of branch points
 
@@ -2501,38 +1895,48 @@ def normal_coord_test(D, distanceToPt, x, y, limit, skeleton_chopped, B_loc):
     # Find the indices of each segment
     Dmasktemp = np.zeros_like(D, dtype=bool)
     Dmasktemp[D < distanceToPt] = True  # Remove creek segments - make everthing farther away than point False -SamK
-    plot_matrix(Dmasktemp, "Initial Dmasktemp (Binary)", point_coords=[(y, x)], cmap='gray')
+    # plot_matrix(Dmasktemp, "Initial Dmasktemp (Binary)", point_coords=[(y, x)], cmap='gray')
     # Calculate geodesic distance using graph approach for better accuracy
-    Dtemp = calculate_chessboard_distance(Dmasktemp, y, x) 
+    Dtemp = calculate_chessboard_distance(Dmasktemp, y, x)
+    # print("Dtemp min:", np.nanmin(Dtemp), "Dtemp max:", np.nanmax(Dtemp))
+    # print("Number of finite distances:", np.sum(~np.isnan(Dtemp)))
     # does not weight diagonal differently than straight connections, compared to geodesic_distance func -SamK
-    plot_matrix(Dtemp, "Dtemp (Distance Matrix)", point_coords=[(y, x)], cmap='hot')
+    # plot_matrix(Dtemp, "Dtemp (Distance Matrix)", point_coords=[(y, x)], cmap='hot')
     # maxDtemp = np.nanmax(Dtemp)
 
     # ADDITIONAL STEP: remove the longer segments of Dmasktemp not connected to a point in B_loc
-    Dmasktemp[B_loc] = True
-    plot_matrix(Dmasktemp, "Updated Dmasktemp with Connected Components", cmap='gray')
+    # rows, cols = np.unravel_index(B_loc, Dmasktemp.shape)
+    # Dmasktemp[rows, cols] = True
+    Dmasktemp[B_loc[:, 0], B_loc[:, 1]] = True
+    # plot_matrix(Dmasktemp, "Updated Dmasktemp with Branch Points", cmap='gray')
     Dmasktempconn = bwconncomp(Dmasktemp) # could also do labeled_array, num_features = ndimage.label(Dmasktemp)
     # gives different, discrete, connected objects in Dmasktemp -SamK
     
     # Visualize
-    labeled_components = Dmasktempconn['labels']  # Get the labeled components
-    plt.figure(figsize=(10, 10))
-    plt.imshow(skeleton_chopped, cmap='gray', alpha=0.5)  # Plot the original skeleton as the background
-    plt.imshow(labeled_components, cmap='nipy_spectral', alpha=0.7)  # Overlay the labeled components
-    plt.colorbar(label="Component Labels")
-    plt.title("Connected Components in Skeleton")
-    plt.axis('off')  # Hide axes for better visualization
-    plt.show()
+    # Create an empty image the same size as `skeleton_chopped`
+    label_image = np.zeros_like(skeleton_chopped)
+    labeled_components = Dmasktempconn['pixel_idx']  # Get the labeled components
+    # Assume labeled_components is a list of (y, x) coordinates
+    for i_component, (y_component, x_component) in enumerate(labeled_components):
+        label_image[x_component, y_component] = i_component + 1  # Assign a label (avoid 0 for visibility)
+    # # Now plot the corrected version
+    # plt.figure(figsize=(10, 10))
+    # skeleton_chopped_plt = np.transpose(skeleton_chopped)
+    # # plt.imshow(skeleton_chopped_plt, cmap='gray', alpha=0.5)
+    # plt.imshow(label_image, cmap='nipy_spectral', alpha=1.0)
+    # # plt.colorbar(label="Component Labels")
+    # plt.title("Connected Components in Skeleton")
+    # plt.show()
 
     XYmask = np.zeros_like(D, dtype=bool)
     XYmask[y, x] = True
-    plot_matrix(XYmask, "XYmask (Current Branch Point)", point_coords=[(y, x)], cmap='gray')
+    # plot_matrix(XYmask, f"XYmask (Current Branch Point, y, x = {y, x})", point_coords=[(y, x)], cmap='gray')
     XYind = np.where(XYmask)
     # XY is just the point of interest, ie the current branch point in the while loop 3/4
 
     idxnum = Dmasktempconn['n_objects'] # Get number of objects
     # Find which components contain pixels from XYind
-    idx = [i for i, component in enumerate(Dmasktempconn['pixel_idx'])
+    idx = [i_conn for i_conn, component in enumerate(Dmasktempconn['pixel_idx'])
         if any(np.in1d(component, XYind))]
     # Remove all other elements
     Dmasktemp = np.zeros_like(D, dtype=bool) # reset Dmasktemp -SamK
@@ -2547,46 +1951,98 @@ def normal_coord_test(D, distanceToPt, x, y, limit, skeleton_chopped, B_loc):
 
     # print('Dmasktemp[row_indices, col_indices] = True, Dmasktemp = ', Dmasktemp)
     Dmasktemp[row_indices, col_indices] = True # makes path along Dmasktemp of connected pixels -SamK
-    plot_matrix(Dmasktemp, "Final Dmasktemp (Connected Segment)", point_coords=[(y, x)], cmap='gray')
+    # plot_matrix(Dmasktemp, "Final Dmasktemp (Connected Segment)", point_coords=[(y, x)], cmap='gray')
     # Dmasktemp[pixel_coords[1], pixel_coords[0]] = True
 
     ptmask1 = np.zeros_like(Dmasktemp, dtype=bool) # Dmasktemp is zeros_like D -SamK
     # ptmask1[B_loc] = True
-    # ptmask1[B_loc[:,0], B_loc[:,1]] = True
-    ptmask1[B_loc[0], B_loc[1]] = True # adds branch points to ptmask1 -SamK
-    plot_matrix(ptmask1, "ptmask1 (Branch Points)", point_coords=[(y, x)], cmap='gray')
-    print('   B_loc = ', B_loc)
+    ptmask1[B_loc[:,0], B_loc[:,1]] = True
+    # ptmask1[B_loc[0], B_loc[1]] = True # adds branch points to ptmask1 -SamK
+    # ptmask1[B_loc[0][0], B_loc[1][1]] = True # adds branch points to ptmask1 -SamK
+    # plot_matrix(ptmask1, "ptmask1 (Branch Points)", point_coords=[(y, x)], cmap='gray')
+    # print('   B_loc = ', B_loc)
     ptmask = ptmask1 & Dmasktemp # where do branch points overlap the connected segment - eg, the other end of this segment -SamK
-    plot_matrix(ptmask, "ptmask (Branch Points Overlap)", point_coords=[(y, x)], cmap='gray')
-    print("   Dmasktemp shape and sum:", Dmasktemp.shape, np.sum(Dmasktemp))
-    print("   ptmask1 shape and sum:", ptmask1.shape, np.sum(ptmask1))
-    print("   Final ptmask shape and sum:", ptmask.shape, np.sum(ptmask))
+    # plot_matrix(ptmask, "ptmask (Branch Points Overlap)", point_coords=[(y, x)], cmap='gray')
+    # print("   Dmasktemp shape and sum:", Dmasktemp.shape, np.sum(Dmasktemp))
+    # print("   ptmask1 shape and sum:", ptmask1.shape, np.sum(ptmask1))
+    # print("   Final ptmask shape and sum:", ptmask.shape, np.sum(ptmask))
     yptend, xptend = np.where(ptmask) # coords of branch points of connected segment - eg, other end of this segement -SamK
+    print("   yptend, xptend = ", yptend, xptend)
     ptmaskind = np.where(ptmask)
     D1 = calculate_geodesic_distance(skeleton_chopped, y, x) # distance along skeleton from current k2th branch point of interest -SamK
     # print('   D1:')
     # print(D1)
     D2 = calculate_geodesic_distance(skeleton_chopped, yptend, xptend) # distance along skeleton from other end point of segment -SamK
-    plot_matrix(D1, "D1 (Geodesic Distance from Start Point)", point_coords=[(y, x)], cmap='hot')
-    plot_matrix(D2, "D2 (Geodesic Distance from End Point)", point_coords=[(y, x)], cmap='hot')
+    # plot_matrix(D1, "D1 (Geodesic Distance from Start Point)", point_coords=[(y, x)], cmap='hot')
+    # plot_matrix(D2, "D2 (Geodesic Distance from End Point)", point_coords=[(y, x)], cmap='hot')
     # print('   D2:')
     # print(D2)
     Dnew = D1 + D2 # add distance rasters together -SamK
+    Dnew_check1 = Dnew
+    # print('   D1[199:202,199:202] = \n', D1[199:202,199:202])
+    # print('   D2[199:202,199:202] = \n', D2[199:202,199:202])
+    # print('   Dnew[199:202,199:202] = \n', Dnew[199:202,199:202])
+    # np.savetxt('/Users/sam/Desktop/temp_check/D1.csv', D1, delimiter=',')
+    # np.savetxt('/Users/sam/Desktop/temp_check/D2.csv', D2, delimiter=',')
+    # np.savetxt('/Users/sam/Desktop/temp_check/Dnew1.csv', Dnew, delimiter=',')
     Dnew = np.round(Dnew * 8) / 8
+    # print('   Dnew[199:202,199:202] = \n', Dnew[199:202,199:202])
+    # np.savetxt('/Users/sam/Desktop/temp_check/Dnew2.csv', Dnew, delimiter=',')
+    # print('max(Dnew-Dnew) after rounding = \n', max(Dnew-Dnew_check1))
     Dnew[np.isnan(Dnew)] = np.inf
-    plot_matrix(Dnew, "Dnew (Sum of D1 and D2)", point_coords=[(y, x)], cmap='hot')
-    paths = imregionalmin(Dnew) # of the geodesic distances to each end point of the segment, which pixels are the least -SamK
-    plot_matrix(paths, "Paths (Regional Minima of Dnew)", point_coords=[(y, x)], cmap='gray')
-    # maybe could just use skeleton path between the two end points?? -SamK # BOOKMARK
-    solution_path = morphology.thin(paths)
-    plot_matrix(solution_path, "Solution Path (Thinned)", point_coords=[(y, x)], cmap='gray')
+    # print('   Dnew[199:202,199:202] = \n', Dnew[199:202,199:202])
+    # np.savetxt('/Users/sam/Desktop/temp_check/Dnew3.csv', Dnew, delimiter=',')
+    # plot_matrix(Dnew, "Dnew (Sum of D1 and D2)", point_coords=[(y, x)], cmap='hot')
+    # paths = imregionalmin(Dnew) # of the geodesic distances to each end point of the segment, which pixels are the least -SamK
+    # plot_matrix(paths, "Paths (Regional Minima of Dnew)", point_coords=[(y, x)], cmap='gray')
+    # solution_path = morphology.thin(paths)
+    # plot_matrix(solution_path, "Solution Path (Thinned)", point_coords=[(y, x)], cmap='gray')
+
+    # Define cost array — restrict movement to skeleton only
+    cost = np.where(skeleton_chopped, 1, np.inf)
+    # Define start and end points — assuming only one branch point at each
+    start = (y, x)
+    end = (yptend[0], xptend[0])  # yptend and xptend from np.where(ptmask)
+    print(f"Start point {start} in skeleton: {skeleton_chopped[start]}")
+    print(f"End point {end} in skeleton: {skeleton_chopped[end]}")
+    print(f"Cost at start: {cost[start]}")
+    print(f"Cost at end: {cost[end]}")
+    # Get the path
+    indices, weight = route_through_array(cost, start, end, fully_connected=True)
+    # Create the solution path mask
+    solution_path = np.zeros_like(skeleton_chopped, dtype=bool)
+    for r, c in indices:
+        solution_path[r, c] = True
+    # plot_matrix(solution_path, "Solution Path (Using route_through_array)", point_coords=[(y, x)], cmap='gray')
     
     Dmasktemp = solution_path.copy() # reset Dmasktemp to path between end points -SamK
     Dmasktemp[ptmaskind] = True # add end points -SamK
-    plot_matrix(Dmasktemp, "Final Dmasktemp with Path and Endpoints", point_coords=[(y, x)], cmap='gray')
+    plot_matrix(Dmasktemp, "Final Dmasktemp with Path and Endpoints", point_coords=[(y, x)], cmap='gray') # plot always
+    # if k_check:
+    #     if k_check < 3:
+    #         plot_matrix(Dmasktemp, "Final Dmasktemp with Path and Endpoints", point_coords=[(y, x)], cmap='gray')
+    BWrem_withEndPts = Dmasktemp.copy()
+    BWrem_withEndPts[y, x] = True # add starting point - point of interest - SamK
+    BWrem_withEndPts[yptend[0], xptend[0]] = True  # add ending point - nearest branch/endpoint - SamK
+
+    # BWrem with endpoints, plus any adjacent points to end points - to ensure a break in loops later
+    # Create masks for the endpoints
+    endpoint_mask = np.zeros_like(skeleton_chopped, dtype=bool)
+    endpoint_mask[y, x] = True
+    endpoint_mask[yptend[0], xptend[0]] = True
+    # Dilate the endpoints by 1 pixel and keep only skeleton points
+    adjacent_mask = binary_dilation(endpoint_mask, structure=np.ones((3,3))) & skeleton_chopped
+    # Remove the original endpoints to get only adjacent points
+    adjacent_only = adjacent_mask & ~endpoint_mask
+    # Add to your existing mask
+    BWrem_withEndPtKnobs = Dmasktemp.copy()
+    BWrem_withEndPtKnobs[y, x] = True
+    BWrem_withEndPtKnobs[yptend[0], xptend[0]] = True
+    BWrem_withEndPtKnobs[adjacent_only] = True
+
     BWrem = Dmasktemp.copy()
     BWrem[ptmaskind] = False # path between end points without endpoints -SamK
-    plot_matrix(BWrem, "BWrem (Path Without Endpoints)", point_coords=[(y, x)], cmap='gray')
+    # plot_matrix(BWrem, "BWrem (Path Without Endpoints)", point_coords=[(y, x)], cmap='gray')
 
     # BOOKMARK - end of problem I think
     
@@ -2633,8 +2089,13 @@ def normal_coord_test(D, distanceToPt, x, y, limit, skeleton_chopped, B_loc):
         # midpt = midpts[len(midpts)//2] 
         # # midpt = np.median(midpts.flatten())
         midpt = round(np.nanmean(Dtemp)) # 1. Find value equal to rounded mean
-        linear_indices = np.where(Dtemp.ravel() == midpt)[0] # 2. Get linear indices where Dtemp equals this value
+        # print('midpt = ', midpt)
+        # Get the linear indices where Dtemp is within certain error of midpt distance
+        linear_indices = np.where(np.abs(Dtemp.ravel() - midpt) <= 0.9)[0] # 2. Get linear indices where Dtemp equals this value
+        # linear_indices = np.where(Dtemp.ravel() == midpt)[0] # 2. Get linear indices where Dtemp equals this value
+        # print('linear_indices = ', linear_indices)
         mid_idx = linear_indices[len(linear_indices)//2]  # 3. Take middle element of these indices
+        # print('mid_idx = ', mid_idx)
         row_midpt, col_midpt = np.unravel_index(mid_idx, Dtemp.shape) # 4. Convert back to 2D coordinates
         
         MIDPT = np.zeros_like(Dtemp, dtype=bool)
@@ -2643,15 +2104,25 @@ def normal_coord_test(D, distanceToPt, x, y, limit, skeleton_chopped, B_loc):
         # MIDPT[row_mid, col_mid] = True
         MIDPT[row_midpt, col_midpt] = True
         ym, xm = np.where(MIDPT) # instead of find(), ind2sub() is commented out by AnnaM in MATLAB -SamK
+        ym, xm = ym[0], xm[0] # ensure they are integer datatypes
         
         # Find the two points at a distance of 0.2*length of midpoint of long segment
         dist = round(maxDtemp/4)
         mid_distances = calculate_chessboard_distance(Dmasktemp, ym, xm) # find distances from midpoint coordinates
         ALLIDX = np.where(mid_distances == dist)
-        if ALLIDX[0].size == 0:  # if ALLIDX is from np.where()
-            x1, y1 = x[0], y[0]
+        if ALLIDX[0].size < 2:
+            # print('ALLIDX[0].size < 2, = ', ALLIDX[0].size)
+            x1, y1 = x, y
             x2, y2 = xptend[0], yptend[0]
+        # if ALLIDX[0].size == 0:  # if ALLIDX is from np.where()
+        #     x1, y1 = x[0], y[0]
+        #     x2, y2 = xptend[0], yptend[0]
         else:
+            # print('ALLIDX[0]:', ALLIDX[0])
+            # print('ALLIDX[1]:', ALLIDX[1])
+            # print('len(ALLIDX[0]):', len(ALLIDX[0]))
+            # print('len(ALLIDX[1]):', len(ALLIDX[1]))
+
             XY1 = np.zeros_like(Dtemp, dtype=bool)
             XY1[ALLIDX[0][0], ALLIDX[1][0]] = True
             y1, x1 = np.where(XY1)
@@ -2694,7 +2165,7 @@ def normal_coord_test(D, distanceToPt, x, y, limit, skeleton_chopped, B_loc):
     x3, y3 = x2new, y2new
     x1, y1 = xm, ym
     
-    return x1, y1, x2, y2, x3, y3, BWrem
+    return x1, y1, x2, y2, x3, y3, BWrem, BWrem_withEndPts, BWrem_withEndPtKnobs
 
 def bwconncomp(binary_image):
     """
@@ -2710,6 +2181,7 @@ def bwconncomp(binary_image):
             - 'image_size': Size of the image
             - 'n_objects': Number of connected components
             - 'pixel_idx': List of tuples (arrays) with indices for each component
+            - 'labels': 2D array of labeled components (like MATLAB's bwlabel)
     """
     # Define 8-connectivity structure
     structure = np.ones((3, 3))
@@ -2724,7 +2196,8 @@ def bwconncomp(binary_image):
         'connectivity': 8,
         'image_size': binary_image.shape,
         'n_objects': n_objects,
-        'pixel_idx': pixel_idx
+        'pixel_idx': pixel_idx,
+        'labels': labeled
     }
 
 def skeleton_to_graph(skeleton):
@@ -2847,7 +2320,10 @@ def calculate_chessboard_distance(mask, start_y, start_x):
         Array of distances from start point
     """
     import networkx as nx  # type: ignore # Local import to avoid naming conflicts
-    
+    # print('mask.shape: ', mask.shape)
+    # print("Mask sum:", np.sum(mask))  # Should be >1 for multiple valid points
+    # print("Start point in mask:", mask[start_y, start_x])
+
     G = nx.Graph()
     
     # Get all valid points
@@ -2865,21 +2341,29 @@ def calculate_chessboard_distance(mask, start_y, start_x):
                 if dy == 0 and dx == 0:
                     continue
                 newy, newx = y + dy, x + dx
-                if (newy, newx) in G.nodes():
+                if G.has_node((newy, newx)):
                     G.add_edge((y, x), (newy, newx), weight=1)
+    
+    # print(f"Graph has {len(G.nodes())} nodes and {len(G.edges())} edges")
+    # print(list(G.edges)[:10])
     
     # Calculate distances
     distances = np.full_like(mask, np.nan, dtype=float)
+    # distances = np.full(mask.shape, np.inf, dtype=float)
     try:
         if (start_y, start_x) in G.nodes():
             path_lengths = nx.single_source_dijkstra_path_length(
                 G, (start_y, start_x), weight='weight')
+            # print(f"Number of computed distances: {len(path_lengths)}")
             for (y, x), dist in path_lengths.items():
                 distances[y, x] = dist
     except Exception as e:
         print(f"Error in distance calculation: {str(e)}")
         print(f"Start point: ({start_y}, {start_x})")
         print(f"Graph nodes: {len(G.nodes())}")
+
+    # print('distances.shape: ', mask.shape)
+    # print("distances sum:", np.sum(mask))  # Should be >1 for multiple valid points
     
     return distances
 
@@ -3006,16 +2490,22 @@ def bwmorph_thicken(image, iterations):
 #     """Remove isolated pixels"""
 #     return ndimage.binary_opening(image)
 
+# def bwmorph_clean(image):
+#     """
+#     Remove isolated pixels (1's surrounded by 0's)
+#     """
+#     # Create 3x3 structuring element
+#     struct = ndimage.generate_binary_structure(2, 1)  # 4-connectivity
+#     # Count neighbors
+#     neighbors = ndimage.convolve(image.astype(int), struct, mode='constant')
+#     # Remove pixels with no neighbors
+#     return image & (neighbors > 1)
+
 def bwmorph_clean(image):
-    """
-    Remove isolated pixels (1's surrounded by 0's)
-    """
-    # Create 3x3 structuring element
-    struct = ndimage.generate_binary_structure(2, 1)  # 4-connectivity
-    # Count neighbors
+    """Remove truly isolated pixels only (no neighbors at all)"""
+    struct = ndimage.generate_binary_structure(2, 2)  # 8-connectivity
     neighbors = ndimage.convolve(image.astype(int), struct, mode='constant')
-    # Remove pixels with no neighbors
-    return image & (neighbors > 1)
+    return image & (neighbors > 0)  # Only remove completely isolated pixels
 
 # def check_imports():
 #     """Check if all required packages are imported correctly"""

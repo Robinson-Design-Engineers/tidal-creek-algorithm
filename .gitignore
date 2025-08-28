@@ -1,2 +1,15 @@
+# Ignore virtual environments
+TidalCreekAlg-py310/
+
+# VS Code settings
+.vscode/
+
+# Python cache
+__pycache__/
 *.pyc
 .DS_Store
+
+# # Data/log/output folders (if any)
+# *.log
+# *.csv
+# OUTPUTS/

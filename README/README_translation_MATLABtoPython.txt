@@ -53,7 +53,7 @@ Section 4:
 - Sam used Claude AI to put this together, and it tested to have very similar outputs for Ashleyville Marsh's ashleyville site compared to MATLAB.
 
 Section 5:
-- all functions are found in the Creek_Ordering.py file
+- Creek_Ordering.py file has all functions
 - MATLAB uses built in packages for image processing like bwmorph - Python uses the scikit-image package's functions
 - any "_diagnostic" or commented out sections in the .py file are generally debugging print statements, to be used if the algorithm is not running properly
 - branch point detection was being troublesome for Python - developed a new method in which only certain linkages qualify for either to ensure there are not neighboring branch points
@@ -68,6 +68,7 @@ Section 5:
 - one bug is noted in github issues tab for outlet point inclusion
 
 Section 6:
+- Strahler_Correction_class.py and Strahler_Correction_execute.py have all functions
 - correction GUI works mostly similar to MATLAB
 - snapping function is added to select only either branch or end points
 - green dots appear for snapped points, the second point does not show a green dot, the creek orders are just immediately updated
@@ -77,7 +78,14 @@ Section 6:
 - perhaps future implementation could use point selection to create new branch or end points.
 
 Section 7:
+- Display_Orders.py has all functions
 - not many differences - just plotting product of creek ordering and corrections from Sections 5 and 6
 
 Section 8:
-- 
+- Process_CrossSections.py has all functions
+
+Section 9:
+- Process_JunctionAngles.py has all functions
+
+Section 10:
+- Save_Results.py has all functions
