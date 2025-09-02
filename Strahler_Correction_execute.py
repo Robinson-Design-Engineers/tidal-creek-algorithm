@@ -141,11 +141,13 @@ def main(skeleton, X, Y, creek_order, creek_order_single, pts, order_max):
         
         # Launch GUI
         print("GUI Instructions:")
-        print("1. Click 'Correct Creek Segment' to start segment correction")
+        print("1. Click 'Begin creek segment correction (2 points)' button to start segment correction")
         print("2. Choose the order number from the dropdown")
-        print("3. Click two points on the right plot to select a segment")
-        print("4. Repeat for other segments as needed")
-        print("5. Click 'Finish Correction' when done")
+        print("3. Click 'Select segment' button to use selection cursor")
+        print("4. Change snapping distance with slider if needed")
+        print("5. Click two points on the right plot to select a segment")
+        print("6. Repeat for other segments as needed")
+        print("7. Click 'Finish correction' button when done")
         
         analyzer.create_correction_gui()
         

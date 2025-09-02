@@ -40,7 +40,10 @@ def plot_creek_orders(skeleton, creekorder, X=None, Y=None, colors=None, figsize
             X, Y = np.meshgrid(x, y)
     
     # Mask the creek orders
+    # masked_orders = np.where(creekorder == 0, np.nan, creekorder)
     masked_orders = np.ma.masked_where(~skeleton, creekorder)
+    # masked_orders = np.ma.masked_where(creekorder == 0, creekorder)
+    # masked_orders = creekorder  # No masking at all
     
     # Create the plot
     fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
@@ -139,13 +142,25 @@ def plot_creek_orders_big(skeleton, creekorder, ordermax, X, Y, colors, figsize,
 
     # Dilate the skeleton for better visibility
     np.savetxt("DEBUG/ipynb_skeleton.csv", skeleton, delimiter=",", fmt="%.2f")
-    dilated_skeleton = dilation(skeleton, disk(1))
+    # dilated_skeleton = dilation(skeleton, disk(1))
+    dilated_skeleton = dilation(skeleton, disk(ordermax))
     np.savetxt("DEBUG/ipynb_dilated_skeleton.csv", dilated_skeleton, delimiter=",", fmt="%.2f")
     # dilated_skeleton = dilation(dilated_skeleton, disk(1))
     # dilated_skeleton = bwmorph_thicken(skeleton, 1)
 
     # Swap creek orders from Strahler to Reverse Strahler
     creekorder[creekorder == 0] = np.nan
+    # check max_order is actually true to creekordermask
+    finite_values = creekorder[np.isfinite(creekorder)]
+    if len(finite_values) > 0:
+        actual_max = np.max(finite_values)
+        if actual_max == ordermax:
+            pass
+        else:
+            print(f'creekorder max ({actual_max}) != ordermax ({ordermax})')
+            ordermax = actual_max # reset ordermax
+    else:
+        print('No finite values in creekorder')
     max_order = np.full_like(creekorder, float(ordermax + 1))
     max_order = max_order.astype(float)  # Ensure max_order is float
     max_order[np.isnan(creekorder)] = np.nan

@@ -12,6 +12,11 @@ from scipy import ndimage # type: ignore
 from skimage.morphology import skeletonize, thin, dilation, disk # type: ignore
 from matplotlib.colors import ListedColormap # type: ignore
 import networkx as nx # type: ignore
+from matplotlib.widgets import Slider
+import matplotlib.patches as patches
+from matplotlib.widgets import RectangleSelector
+from matplotlib.backend_bases import MouseEvent
+
 
 class CreekNetworkAnalyzer:
 
@@ -76,28 +81,114 @@ class CreekNetworkAnalyzer:
         for _ in range(iterations):
             result = dilation(result, disk(1))
         return result
+    
+    def onselect_left(self, eclick, erelease):
+        """Handle zoom selection on left plot"""
+        try:
+            x1, y1 = eclick.xdata, eclick.ydata
+            x2, y2 = erelease.xdata, erelease.ydata
+            if None not in (x1, y1, x2, y2):
+                self.ax1.set_xlim(min(x1, x2), max(x1, x2))
+                self.ax1.set_ylim(min(y1, y2), max(y1, y2))
+                self.canvas1.draw_idle()
+        except Exception as e:
+            print(f"Error in onselect_left: {e}")
+
+    def onselect_right(self, eclick, erelease):
+        """Handle zoom selection on right plot"""
+        try:
+            x1, y1 = eclick.xdata, eclick.ydata
+            x2, y2 = erelease.xdata, erelease.ydata
+            if None not in (x1, y1, x2, y2):
+                self.ax2.set_xlim(min(x1, x2), max(x1, x2))
+                self.ax2.set_ylim(min(y1, y2), max(y1, y2))
+                self.canvas2.draw_idle()
+        except Exception as e:
+            print(f"Error in onselect_right: {e}")
+
+    def setup_zoom(self):
+        """Set up zoom selectors with different colors for left and right plots"""
+
+        # Left plot selector (black rubber band)
+        self.left_selector = RectangleSelector(
+            self.ax1, self.onselect_left,
+            useblit=False,  # <-- disable blitting
+            button=[1],     # left mouse button
+            interactive=False,
+            props=dict(facecolor='none', edgecolor='black', linewidth=2, linestyle='-')
+        )
+
+        # Right plot selector (white rubber band)
+        self.right_selector = RectangleSelector(
+            self.ax2, self.onselect_right,
+            useblit=True,
+            button=[1],
+            interactive=True,
+            props=dict(facecolor='none', edgecolor='white', linewidth=1.5, linestyle='-')
+        )
+
+    def add_zoom_button(self):
+        """Add a button to toggle zoom mode."""
+        
+        # Access the toolbar
+        toolbar = self.canvas2.toolbar  # or self.canvas1.toolbar for left
+        
+        # Create a simple button
+        from matplotlib.widgets import Button
+        ax_btn = self.fig2.add_axes([0.91, 0.01, 0.08, 0.04])  # adjust position
+        self.zoom_btn = Button(ax_btn, 'Zoom')
+        
+        def toggle_zoom(event):
+            # Disable selection when zoom is active
+            self.selection_mode = False
+            
+            # Toggle right selector
+            active = self.right_selector.active
+            self.right_selector.set_active(not active)
+        
+        self.zoom_btn.on_clicked(toggle_zoom)
+
+    def toggle_selection_mode(self):
+        """
+        Toggle selection mode on/off and handle drawing/removing previous selection safely.
+        """
+        attr = 'selection_artist'  # replace with your actual attribute storing the drawn artist
+
+        # Try to remove previous artist safely
+        artist = getattr(self, attr, None)
+        if artist is not None:
+            try:
+                artist.remove()
+            except NotImplementedError:
+                # fallback: hide instead of remove
+                try:
+                    artist.set_visible(False)
+                except AttributeError:
+                    # nothing we can do, just ignore
+                    pass
+            finally:
+                setattr(self, attr, None)  # clear reference
+
+        # Toggle selection mode flag
+        self.selection_mode = not getattr(self, 'selection_mode', False)
+        print(f"Selection mode {'ON' if self.selection_mode else 'OFF'}")
+
 
     def create_correction_gui(self):
-        # 6.2 in MATLAB CHIROL_CREEK_ALGORITHM_2024.m -SamK
         """Create GUI for creek order correction"""
         self.root = tk.Tk()
         self.root.title("Creek Order Correction")
         self.root.geometry("1400x800")
 
-        # Create main frame
+        # Main frame
         main_frame = ttk.Frame(self.root)
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
-        # # Title
-        # title_label = ttk.Label(main_frame, text="Creek Order Corrections", 
-        #                       font=('Arial', 14, 'bold'))
-        # title_label.pack(pady=5)
-
-        # Create plots frame
+        # Plots frame
         plots_frame = ttk.Frame(main_frame)
         plots_frame.pack(fill=tk.BOTH, expand=True)
 
-        # Left plot
+        # Left plot (Uncorrected Creek Orders)
         left_frame = ttk.Frame(plots_frame)
         left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
@@ -108,12 +199,10 @@ class CreekNetworkAnalyzer:
         self.canvas1.get_tk_widget().pack(fill=tk.BOTH, expand=True)
         NavigationToolbar2Tk(self.canvas1, left_frame)
 
-        # Add "Uncorrected Creek Orders" label
-        uncorr_label = ttk.Label(left_frame, text="Uncorrected Creek Orders",
-                               font=('Arial', 12, 'bold'))
+        uncorr_label = ttk.Label(left_frame, text="Creek Orders", font=('Arial', 12, 'bold'))
         uncorr_label.pack()
 
-        # Right plot
+        # Right plot (Correction Window)
         right_frame = ttk.Frame(plots_frame)
         right_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(10, 0))
 
@@ -124,49 +213,109 @@ class CreekNetworkAnalyzer:
         self.canvas2.get_tk_widget().pack(fill=tk.BOTH, expand=True)
         NavigationToolbar2Tk(self.canvas2, right_frame)
 
-        # Add "Correction Window" label
-        uncorr_label = ttk.Label(right_frame, text="Correction Window",
-                               font=('Arial', 12, 'bold'))
+        uncorr_label = ttk.Label(right_frame, text="Correction Window", font=('Arial', 12, 'bold'))
         uncorr_label.pack()
 
         # Control panel
         control_frame = ttk.Frame(main_frame)
         control_frame.pack(fill=tk.X, pady=(10, 0))
 
-        # Group the correction controls
         corr_frame = ttk.Frame(control_frame)
         corr_frame.pack(side=tk.RIGHT, padx=10)
 
-        self.select_btn = ttk.Button(corr_frame, 
-                                   text="Correct creek segment (2 points)",
-                                   command=self.start_selection)
+        self.select_btn = ttk.Button(corr_frame,
+                                    text="Begin creek segment correction (2 points)",
+                                    command=self.start_selection)
         self.select_btn.pack(side=tk.LEFT, padx=5)
 
-        # Creek order selection
         order_label = ttk.Label(corr_frame, text="Creek Order")
         order_label.pack(side=tk.LEFT, padx=(10, 5))
 
         self.order_var = tk.StringVar(value="1")
-        order_menu = ttk.Combobox(corr_frame, 
+        order_menu = ttk.Combobox(corr_frame,
                                 textvariable=self.order_var,
                                 values=[str(i) for i in range(1, self.order_max + 2)],
                                 width=5)
         order_menu.pack(side=tk.LEFT, padx=5)
 
-        self.finish_btn = ttk.Button(corr_frame, 
-                                   text="Finish correction",
-                                   command=self.finish_correction)
+        self.finish_btn = ttk.Button(corr_frame,
+                                    text="Finish correction",
+                                    command=self.finish_correction)
         self.finish_btn.pack(side=tk.LEFT, padx=5)
+
+        # Add select segment cursor toggle button
+        self.cursor_toggle_btn = ttk.Button(corr_frame, text="Select segment", command=self.toggle_selection_mode)
+        self.cursor_toggle_btn.pack(side=tk.LEFT, padx=5)
+
+        # --- Snap Distance Slider Setup ---
+        slider_ax = self.fig2.add_axes([0.25, 0.01, 0.50, 0.03])
+        self.snap_slider = Slider(slider_ax, 'Snap Distance', 1.0, 100.0, valinit=10.0)
+        self.SNAP_DISTANCE = self.snap_slider.val
+
+        def update_snap(val):
+            self.SNAP_DISTANCE = self.snap_slider.val
+            if hasattr(self, 'cursor_circle'):
+                self.cursor_circle.set_radius(self.SNAP_DISTANCE)
+            self.canvas2.draw_idle()
+            print(f"Snap distance set to {self.SNAP_DISTANCE:.1f}")
+
+        self.snap_slider.on_changed(update_snap)
+        # --- End slider setup ---
+
+        # --- Zoom selectors ---
+        # Create left (black) and right (white) selectors
+        self.setup_zoom()  # left_selector black, right_selector white
+        self.left_selector.set_active(False)
+        self.right_selector.set_active(False)
+
+        # Add toolbar zoom toggle button for right plot
+        from matplotlib.widgets import Button
+        ax_zoom_btn = self.fig2.add_axes([0.91, 0.01, 0.08, 0.04])
+        self.zoom_btn = Button(ax_zoom_btn, 'Zoom')
+
+        def toggle_zoom(event):
+            # Disable selection mode while zooming
+            self.selection_mode = False
+            # Toggle right plot zoom
+            self.right_selector.set_active(not self.right_selector.active)
+
+        self.zoom_btn.on_clicked(toggle_zoom)
+        # --- End zoom selectors ---
 
         # Initialize plots
         self._plot_creek_orders()
         self._plot_skeleton()
 
-        # Connect events
+        # Connect click events
+        self.canvas2.mpl_connect('motion_notify_event', self.update_cursor)
         self.canvas2.mpl_connect('button_press_event', self.on_click)
-        
+
+        # Handle window close
         self.root.protocol("WM_DELETE_WINDOW", self.finish_correction)
         self.root.mainloop()
+
+    # Cursor update function
+    def update_cursor(self, event):
+        """Update snapping cursor position"""
+        if not self.selection_mode or event.inaxes != self.ax2:
+            return
+
+        x, y = event.xdata, event.ydata
+
+        # Create circle if it doesn't exist
+        if not hasattr(self, 'cursor_circle'):
+            self.cursor_circle = plt.Circle((x, y), self.SNAP_DISTANCE, color='red', fill=False, lw=1.5, alpha=0.7)
+            self.ax2.add_patch(self.cursor_circle)
+            # Crosshair
+            self.hline = self.ax2.axhline(y, color='red', lw=1, alpha=0.7)
+            self.vline = self.ax2.axvline(x, color='red', lw=1, alpha=0.7)
+        else:
+            # Update position
+            self.cursor_circle.center = (x, y)
+            self.hline.set_ydata([y, y])
+            self.vline.set_xdata([x, x])
+
+        self.canvas2.draw_idle()
 
     def _plot_creek_orders(self):
         """Plot creek orders"""
@@ -183,8 +332,11 @@ class CreekNetworkAnalyzer:
         discrete_cmap = ListedColormap(colors)
         
         # Dilate the skeleton for better visibility
-        dilated_skeleton = dilation(self.skeleton, disk(1))
-        masked_orders = np.ma.masked_where(~dilated_skeleton, self.creek_order_swapped)
+        # dilated_skeleton = dilation(self.skeleton, disk(1))
+        # masked_orders = np.ma.masked_where(~dilated_skeleton, self.creek_order_swapped)
+        # masked_orders = np.ma.masked_where(~dilated_skeleton, self.creek_order_single_swapped)
+        # masked_orders = np.ma.masked_where(~self.skeleton, self.creek_order_single_swapped)
+        masked_orders = np.ma.masked_where(self.creek_order_swapped == 0, self.creek_order_swapped)
 
         # Set the aspect ratio to 1:1
         self.ax1.set_aspect('equal')
@@ -195,10 +347,6 @@ class CreekNetworkAnalyzer:
         y_edges = np.arange(masked_orders.shape[0] + 1)
         X_edges, Y_edges = np.meshgrid(x_edges, y_edges)
         
-        # im = self.ax1.pcolormesh(X_edges, Y_edges, masked_orders,
-        #                         cmap=discrete_cmap, 
-        #                         vmin=1, vmax=7,
-        #                         shading='flat')
         im = self.ax1.pcolormesh(Y_edges, X_edges, masked_orders,
                                 cmap=discrete_cmap, 
                                 vmin=1, vmax=7,
@@ -245,6 +393,10 @@ class CreekNetworkAnalyzer:
     # starts 6.3 in MATLAB CHIROL_CREEK_ALGORITHM_2024.m -SamK
     def on_click(self, event):
         """Handle click events on the skeleton plot and snap to nearest branch/endpoint"""
+        if self.right_selector.active:
+            # Ignore clicks while zooming
+            return
+
         if event.inaxes == self.ax2 and self.selection_mode:
             # Get clicked coordinates
             clicked_y, clicked_x = event.xdata, event.ydata
@@ -294,10 +446,12 @@ class CreekNetworkAnalyzer:
         self.selected_points = []
         # Clear any existing temporary click point
         if hasattr(self, 'temp_click'):
-            self.temp_click.remove()
+            # Instead of removing, clear its data
+            self.temp_click.set_data([], [])
             delattr(self, 'temp_click')
         self._plot_skeleton()  # Refresh the plot
-        print("Click two points on the right plot to select a creek segment")
+        # print("Click two points on the right plot to select a creek segment")
+        print("Select new order from dropdown, click segment selector button, then choose two points.")
 
     def finish_correction(self):
         """Close GUI and finish correction"""
@@ -343,7 +497,8 @@ class CreekNetworkAnalyzer:
                 path[y, x] = True
                 
             # Create dilated path
-            dilated_path = dilation(path, disk(1))
+            # dilated_path = dilation(path, disk(1))
+            dilated_path = dilation(path, disk(order))
             
             # Update creek order with dilated path
             self.creek_order_single_swapped[path] = order
@@ -355,8 +510,8 @@ class CreekNetworkAnalyzer:
             print("No valid path found between selected points")
         except Exception as e:
             print(f"Error finding path: {e}")
-    # ends 6.3 in MATLAB CHIROL_CREEK_ALGORITHM_2024.m -SamK
 
+    # ends 6.3 in MATLAB CHIROL_CREEK_ALGORITHM_2024.m -SamK
     def process_corrected_segments(self):
         """Process segments that were corrected through the GUI interface."""
         
@@ -511,6 +666,9 @@ class CreekNetworkAnalyzer:
                 
                 # Update creek order visualization
                 creek_order_mask = skeletonize(Dmask)
-                self.creek_order_single_swapped[creek_order_mask != 0] = creek_order_mask[creek_order_mask != 0] * order
-                creek_order_mask = self.bwmorph_thicken(creek_order_mask, 3) # changed (creek_order_mask, 3)
+                # self.creek_order_single_swapped[creek_order_mask != 0] = creek_order_mask[creek_order_mask != 0] * order
+                self.creek_order_single_swapped[creek_order_mask != 0] = order
+                # Thicken the mask i times:
+                # creek_order_mask = self.bwmorph_thicken(creek_order_mask, 3) # changed (creek_order_mask, 3)
+                creek_order_mask = dilation(creek_order_mask, disk(order)) # thickens creekordermask for visibility of "creekorder" in plots of skeleton
                 self.creek_order_swapped[creek_order_mask != 0] = creek_order_mask[creek_order_mask != 0] * order

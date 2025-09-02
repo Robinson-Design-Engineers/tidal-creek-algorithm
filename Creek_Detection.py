@@ -456,6 +456,55 @@ def main(threshold, Zs, Z, gs, Cth, HZth, LZth, X, Y, X2, Y2, HZtharea, LZtharea
 
     return creekmask
 
+def main_debug(threshold, Zs, Z, gs, Cth, HZth, LZth, X, Y, X2, Y2, HZtharea, LZtharea, Ctharea, shortname):
+    print(f"DEBUG: threshold = {threshold}, type = {type(threshold)}")
+    print(f"DEBUG: threshold == 0 evaluates to: {threshold == 0}")
+    # print(f"DEBUG: threshold is 0 evaluates to: {threshold is 0}")
+    
+    if threshold == 0:
+        print('automatic creek detection')
+        print('DEBUG: Entering automatic detection branch')
+        creek, CumArea, binrange, CumAreas, binranges, _, _ = creek_detection(Zs, Z, gs, Cth, HZth, LZth)
+    else:
+        print('manual creek detection')
+        print('DEBUG: Entering manual detection branch')
+        creek, CumArea, binrange, CumAreas, binranges, HZth, LZth, Cth, HZtharea, LZtharea, Ctharea = creek_detection_manual(Zs, Z, gs)
+
+    # Rest of your function continues here...
+    print('DEBUG: Finished threshold check, continuing with processing...')
+    
+    # Create dictionary with all variables
+    variables_correction = {
+        "creek": creek,
+        "CumArea": CumArea,
+        "binrange": binrange,
+        "CumAreas": CumAreas,
+        "binranges": binranges
+    }
+
+    # Convert all numpy arrays to lists
+    variables_correction = {
+        key: value.tolist() if isinstance(value, np.ndarray) else value 
+        for key, value in variables_correction.items()
+    }
+
+    # Save to a JSON file
+    with open(f"OUTPUTS/{shortname}_processed_variables_Creek_Detection.json", "w") as f:
+        json.dump(variables_correction, f)
+
+    # Map the creek network based on the threshold criteria
+    # Ensure Z is a numpy array
+    Z = np.array(Z)
+    X, Y = np.meshgrid(np.arange(Z.shape[1]), np.arange(Z.shape[0])) # check 0,1 vs. 1,0
+    X2, Y2 = X, Y  # Assuming X2, Y2 are the same as X, Y
+    figure_creek_detection(X, Y, creek, X2, Y2, Z, CumArea, binrange, CumAreas, binranges, LZtharea, LZth, HZtharea, HZth, Ctharea, Cth)
+
+    # Extract the raw creek mask
+    creekmask = ~np.isnan(creek)
+    figure_raw_creek_mask(creekmask)
+
+    return creekmask
+
 # Usage example:
 # threshold = 0  # or 1 for manual detection
 # Zs = ...  # your slope data
