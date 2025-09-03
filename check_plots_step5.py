@@ -108,9 +108,9 @@ def convert_to_numpy(data, dtype=None):
 def plot_creek_orders_big(skeleton, creekorder, ordermax, X, Y, colors, figsize, dpi):
     """Plot creek orders"""
 
-    np.savetxt("DEBUG/ipynb_creek_order_pre_convert.csv", creekorder, delimiter=",", fmt="%.2f")
+    # np.savetxt("DEBUG/ipynb_creek_order_pre_convert.csv", creekorder, delimiter=",", fmt="%.2f")
     creekorder = convert_to_numpy(creekorder, dtype=float)
-    np.savetxt("DEBUG/ipynb_creek_order_post_convert.csv", creekorder, delimiter=",", fmt="%.2f")
+    # np.savetxt("DEBUG/ipynb_creek_order_post_convert.csv", creekorder, delimiter=",", fmt="%.2f")
 
     # Create coordinate arrays if not provided
     if X is None or Y is None:
@@ -141,10 +141,10 @@ def plot_creek_orders_big(skeleton, creekorder, ordermax, X, Y, colors, figsize,
     discrete_cmap = ListedColormap(colors)
 
     # Dilate the skeleton for better visibility
-    np.savetxt("DEBUG/ipynb_skeleton.csv", skeleton, delimiter=",", fmt="%.2f")
+    # np.savetxt("DEBUG/ipynb_skeleton.csv", skeleton, delimiter=",", fmt="%.2f")
     # dilated_skeleton = dilation(skeleton, disk(1))
     dilated_skeleton = dilation(skeleton, disk(ordermax))
-    np.savetxt("DEBUG/ipynb_dilated_skeleton.csv", dilated_skeleton, delimiter=",", fmt="%.2f")
+    # np.savetxt("DEBUG/ipynb_dilated_skeleton.csv", dilated_skeleton, delimiter=",", fmt="%.2f")
     # dilated_skeleton = dilation(dilated_skeleton, disk(1))
     # dilated_skeleton = bwmorph_thicken(skeleton, 1)
 
@@ -167,13 +167,13 @@ def plot_creek_orders_big(skeleton, creekorder, ordermax, X, Y, colors, figsize,
     creek_order_swapped = max_order - creekorder
 
     # Dilate the creek order mask for better visibility
-    np.savetxt("DEBUG/ipynb_creek_order_swapped.csv", creek_order_swapped, delimiter=",", fmt="%.2f")
+    # np.savetxt("DEBUG/ipynb_creek_order_swapped.csv", creek_order_swapped, delimiter=",", fmt="%.2f")
     # masked_orders = np.ma.masked_where(~dilated_skeleton, creekorder)
     masked_orders = np.ma.masked_where(~dilated_skeleton, creek_order_swapped)
 
     # Plot the data using pcolormesh with explicit shading parameter
-    np.savetxt("DEBUG/ipynb_X.csv", X, delimiter=",", fmt="%.2f")
-    np.savetxt("DEBUG/ipynb_Y.csv", Y, delimiter=",", fmt="%.2f")
+    # np.savetxt("DEBUG/ipynb_X.csv", X, delimiter=",", fmt="%.2f")
+    # np.savetxt("DEBUG/ipynb_Y.csv", Y, delimiter=",", fmt="%.2f")
     # im = ax.pcolormesh(X, Y, masked_orders, 
     #                   cmap=discrete_cmap, 
     #                   vmin=1, 

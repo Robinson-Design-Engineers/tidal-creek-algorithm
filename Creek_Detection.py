@@ -459,7 +459,7 @@ def main(threshold, Zs, Z, gs, Cth, HZth, LZth, X, Y, X2, Y2, HZtharea, LZtharea
 def main_debug(threshold, Zs, Z, gs, Cth, HZth, LZth, X, Y, X2, Y2, HZtharea, LZtharea, Ctharea, shortname):
     print(f"DEBUG: threshold = {threshold}, type = {type(threshold)}")
     print(f"DEBUG: threshold == 0 evaluates to: {threshold == 0}")
-    # print(f"DEBUG: threshold is 0 evaluates to: {threshold is 0}")
+    print(f"DEBUG: threshold is 0 evaluates to: {threshold is 0}")
     
     if threshold == 0:
         print('automatic creek detection')
