@@ -1196,7 +1196,7 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
                     
                 except ValueError as e:
                     print(f"Skipping closed loop component {iii} - could not process normal vectors: {str(e)}")
-                    print("Using fallback coordinates: center and midpoint along skeleton path")
+                    print("Using fallback coordinates: center and extended line through midpoint")
                     
                     # Calculate center coordinates of the component
                     center_y = np.mean(pixel_coords[0])
@@ -1204,9 +1204,6 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
                     
                     # Find midpoint along the skeleton path between start and end
                     # Create a simple path from start to endpoint using component_mask
-                    # start_point = (ptlocy, ptlocx)
-                    # end_point = (row_midpt, col_midpt)
-                    
                     # Get all skeleton pixels in this component
                     skeleton_pixels = list(zip(pixel_coords[0], pixel_coords[1]))
                     
@@ -1223,17 +1220,24 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
                         max_dist = max(distances_from_start.values())
                         target_dist = max_dist / 2
                         # Find pixel closest to target distance
-                        closest_pixel = min(distances_from_start.items(), 
+                        closest_pixel = min(distances_from_start.items(),
                                         key=lambda x: abs(x[1] - target_dist))
                         midpoint_y, midpoint_x = closest_pixel[0]
                     else:
                         # Fallback to calculated midpoint
                         midpoint_y, midpoint_x = row_midpt, col_midpt
                     
-                    # Create normal vectors
+                    # Create normal vectors - extend line in opposite direction
                     x1, y1 = center_x, center_y  # Center point
                     x2, y2 = midpoint_x, midpoint_y  # Midpoint along skeleton path
-                    x3, y3 = center_x, center_y  # Second normal vector point
+                    
+                    # Calculate direction vector from center to midpoint
+                    dx = np.abs(x2 - x1)
+                    dy = np.abs(y2 - y1)
+                    
+                    # Extend the line in the opposite direction by the same distance
+                    x3 = x2 + dx  # Extend opposite direction
+                    y3 = y2 + dy
                     
                     # Store the fallback coordinates
                     if col < IDXSEG.shape[1]:
@@ -1242,7 +1246,6 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
                         new_values = [x1, y1, x2, y2, x3, y3]
                         IDXSEG = np.concatenate((IDXSEG, np.zeros((IDXSEG.shape[0], 6))), axis=1)
                         IDXSEG[i, -6:] = new_values
-                    
                     col += 6
                     
                 # Set straight distance as NaN for loops
@@ -1330,6 +1333,9 @@ def process_creek_ordering_diagnostic(ordermax, Z, skeleton, outletdetection, nb
                     euclD_comp = ndimage.distance_transform_edt(skeletoneucl_comp == 0)
                     disttopt_comp = euclD_comp[ptlocy_comp, ptlocx_comp]
                     STRAIGHTDIST[i, k] = disttopt_comp
+
+                    # Set straight distance as NaN for loops
+                    STRAIGHTDIST[i,k] = np.nan
                     
                     # Save index of branch point for junction angle assignment
                     ptloc_linear_comp = np.ravel_multi_index((ptlocy_comp, ptlocx_comp), DD_comp.shape)

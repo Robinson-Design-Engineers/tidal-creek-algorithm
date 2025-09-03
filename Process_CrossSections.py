@@ -32,6 +32,8 @@ def bresenham(x0, y0, x1, y1):
             y += sy
     yield (x, y)
 
+
+
 def process_xsects(creekmask, creek, IDXSEG, ordermax, figview=False):
     """
     Process creek cross-sections to calculate width, depth, and area.
@@ -75,9 +77,9 @@ def process_xsects(creekmask, creek, IDXSEG, ordermax, figview=False):
         
         fig, ax = plt.subplots()
         ax.set_xlabel('Distance (ft)', fontsize=14, fontweight='bold')
-        ax.set_ylabel('Depth (ft)', fontsize=14, fontweight='bold')
+        ax.set_ylabel('Distance (ft)', fontsize=14, fontweight='bold')
         ax.set_title('Creek cross-sections')
-        colors = ['black'] + plt.cm.parula(np.linspace(0, 1, 5)).tolist()
+        colors = ['black'] + plt.cm.viridis(np.linspace(0, 1, ordermax)).tolist()
         
         # Create legend handles
         for i, color in enumerate(colors):
@@ -114,11 +116,18 @@ def process_xsects(creekmask, creek, IDXSEG, ordermax, figview=False):
                 # Combine start and end segments
                 xline = np.concatenate([xlinestart, xlineend])
                 yline = np.concatenate([ylinestart, ylineend])
+                print(f'Before bounds check - xline range: {np.min(xline) if len(xline) > 0 else "empty"} to {np.max(xline) if len(xline) > 0 else "empty"}')
+                print(f'Before bounds check - yline range: {np.min(yline) if len(yline) > 0 else "empty"} to {np.max(yline) if len(yline) > 0 else "empty"}')
+                print(f'Image bounds: x: 0 to {creekmask.shape[1]-1}, y: 0 to {creekmask.shape[0]-1}')
                 
                 # Remove out of bounds indices
-                coordlogic = (xline > 0) & (yline > 0) & (xline < creekmask.shape[0]) & (yline < creekmask.shape[1])
+                coordlogic = (xline >= 0) & (yline >= 0) & (xline < creekmask.shape[1]) & (yline < creekmask.shape[0])
                 xline = xline[coordlogic]
                 yline = yline[coordlogic]
+                print(f'After bounds check - xline length: {len(xline)}, yline length: {len(yline)}')
+                if len(xline) > 0:
+                    print(f'After bounds check - xline range: {np.min(xline)} to {np.max(xline)}')
+                    print(f'After bounds check - yline range: {np.min(yline)} to {np.max(yline)}')
 
                 # Create a mask where cross-section pixels = 0.5
                 segmentmask = np.zeros_like(creekmask)
@@ -282,7 +291,7 @@ def process_xsects(creekmask, creek, IDXSEG, ordermax, figview=False):
                             plt.plot(yline2, xline2, color='white', linewidth=5)
                             # Plot colored line
                             plt.plot(yline2, xline2, 
-                                    color=colors[inverse_order[order]], 
+                                    color=colors[inverse_order[order-1]],
                                     linewidth=3)
                             
                     if len(z_profile) > 1:  # case where cross-section is a line
@@ -407,7 +416,7 @@ def process_xsects(creekmask, creek, IDXSEG, ordermax, figview=False):
                             if figview:
                                 plt.figure(1)
                                 # Plot and set legend visibility off
-                                line = plt.plot(lval, -Z, linewidth=2, color=colors[inverse_order[order]])
+                                line = plt.plot(lval, -Z, linewidth=2, color=colors[inverse_order[order-1]],)
                                 # Hide from legend
                                 plt.setp(line, label="_nolegend_")
                             
@@ -530,9 +539,9 @@ def process_xsects_diagnostic(creekmask, creek, skeleton, IDXSEG, ordermax, figv
         
         fig, ax = plt.subplots()
         ax.set_xlabel('Distance (ft)', fontsize=14, fontweight='bold')
-        ax.set_ylabel('Depth (ft)', fontsize=14, fontweight='bold')
+        ax.set_ylabel('Distance (ft)', fontsize=14, fontweight='bold')
         ax.set_title('Creek cross-sections')
-        colors = ['black'] + plt.cm.parula(np.linspace(0, 1, 5)).tolist()
+        colors = ['black'] + plt.cm.viridis(np.linspace(0, 1, ordermax)).tolist()
         
         # Create legend handles
         for i, color in enumerate(colors):
@@ -588,11 +597,18 @@ def process_xsects_diagnostic(creekmask, creek, skeleton, IDXSEG, ordermax, figv
                 # Combine start and end segments
                 xline = np.concatenate([xlinestart, xlineend])
                 yline = np.concatenate([ylinestart, ylineend])
+                print(f'Before bounds check - xline range: {np.min(xline) if len(xline) > 0 else "empty"} to {np.max(xline) if len(xline) > 0 else "empty"}')
+                print(f'Before bounds check - yline range: {np.min(yline) if len(yline) > 0 else "empty"} to {np.max(yline) if len(yline) > 0 else "empty"}')
+                print(f'Image bounds: x: 0 to {creekmask.shape[1]-1}, y: 0 to {creekmask.shape[0]-1}')
                 
                 # Remove out of bounds indices
-                coordlogic = (xline > 0) & (yline > 0) & (xline < creekmask.shape[0]) & (yline < creekmask.shape[1])
+                coordlogic = (xline >= 0) & (yline >= 0) & (xline < creekmask.shape[1]) & (yline < creekmask.shape[0])
                 xline = xline[coordlogic]
                 yline = yline[coordlogic]
+                print(f'After bounds check - xline length: {len(xline)}, yline length: {len(yline)}')
+                if len(xline) > 0:
+                    print(f'After bounds check - xline range: {np.min(xline)} to {np.max(xline)}')
+                    print(f'After bounds check - yline range: {np.min(yline)} to {np.max(yline)}')
 
                 # Create a mask where cross-section pixels = 0.5
                 segmentmask = np.zeros_like(creekmask)
@@ -632,6 +648,10 @@ def process_xsects_diagnostic(creekmask, creek, skeleton, IDXSEG, ordermax, figv
                 C = np.array([x for x in set(map(tuple, B)) & set(map(tuple, A))])
 
                 print('C = ', C)
+                print('segmentmask sum = ', np.sum(segmentmask))
+                print('creekmasktemp sum before filtering = ', np.sum(creekmasktemp))  
+                print('L max value = ', np.max(L))
+                print('L at middle point [y1,x1] = ', L[y1, x1])
 
                 # If we found any intersecting points
                 if len(C) > 0:
@@ -777,7 +797,7 @@ def process_xsects_diagnostic(creekmask, creek, skeleton, IDXSEG, ordermax, figv
                             plt.plot(yline2, xline2, color='white', linewidth=5)
                             # Plot colored line
                             plt.plot(yline2, xline2, 
-                                    color=colors[inverse_order[order]], 
+                                    color=colors[inverse_order[order-1]], 
                                     linewidth=3)
                             
                     if len(z_profile) > 1:  # case where cross-section is a line
@@ -930,7 +950,7 @@ def process_xsects_diagnostic(creekmask, creek, skeleton, IDXSEG, ordermax, figv
                             if figview:
                                 plt.figure(1)
                                 # Plot and set legend visibility off
-                                line = plt.plot(lval, -Z, linewidth=2, color=colors[inverse_order[order]])
+                                line = plt.plot(lval, -Z, linewidth=2, color=colors[inverse_order[order-1]],)
                                 # Hide from legend
                                 plt.setp(line, label="_nolegend_")
                             
